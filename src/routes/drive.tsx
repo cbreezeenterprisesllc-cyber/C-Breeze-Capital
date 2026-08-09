@@ -3,6 +3,7 @@ import { TopbarNav } from "~/components/Navigation";
 import { Button } from "~/components/Button";
 import { Card, CardBody } from "~/components/Card";
 import { Badge } from "~/components/Badge";
+import { Icon, type IconName } from "~/components/Icon";
 
 export const Route = createFileRoute("/drive")({
   component: DrivePage,
@@ -16,12 +17,12 @@ const EARNINGS = [
 ];
 
 const PERKS = [
-  { icon: "📱", title: "Your schedule", desc: "Work when you want. No shifts, no minimums. You're a 1099 independent contractor." },
-  { icon: "💰", title: "Weekly payouts", desc: "Direct deposit every Friday. Tips are yours immediately." },
-  { icon: "🛡️", title: "Safety first", desc: "In-app emergency button, delivery verification, and real-time support." },
-  { icon: "🚗", title: "Use your own car", desc: "2011 or newer vehicle with valid insurance. We handle the compliance." },
-  { icon: "⭐", title: "Keep your rating up", desc: "Top-rated drivers get priority on high-value deliveries." },
-  { icon: "📋", title: "Simple requirements", desc: "21+, valid license, pass background check. That's it." },
+  { icon: "phone" as IconName, title: "Your schedule", desc: "Work when you want. No shifts, no minimums. You're a 1099 independent contractor." },
+  { icon: "dollars" as IconName, title: "Weekly payouts", desc: "Direct deposit every Friday. Tips are yours immediately." },
+  { icon: "shield" as IconName, title: "Safety first", desc: "In-app emergency button, delivery verification, and real-time support." },
+  { icon: "car" as IconName, title: "Use your own car", desc: "2011 or newer vehicle with valid insurance. We handle the compliance." },
+  { icon: "star" as IconName, title: "Keep your rating up", desc: "Top-rated drivers get priority on high-value deliveries." },
+  { icon: "clipboard" as IconName, title: "Simple requirements", desc: "21+, valid license, pass background check. That's it." },
 ];
 
 function DrivePage() {
@@ -71,7 +72,7 @@ function DrivePage() {
           {PERKS.map((p) => (
             <Card key={p.title} padding="md">
               <CardBody>
-                <div style={{ fontSize: 24, marginBottom: 8 }}>{p.icon}</div>
+                <div style={{ marginBottom: 8 }}><Icon name={p.icon} size={24} /></div>
                 <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>{p.title}</h3>
                 <p style={{ fontSize: 14, color: "var(--color-neutral-500)", margin: 0 }}>{p.desc}</p>
               </CardBody>

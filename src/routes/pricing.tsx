@@ -3,6 +3,7 @@ import { TopbarNav } from "~/components/Navigation";
 import { Button } from "~/components/Button";
 import { Card, CardHeader, CardBody } from "~/components/Card";
 import { Badge } from "~/components/Badge";
+import { Icon } from "~/components/Icon";
 
 export const Route = createFileRoute("/pricing")({
   component: PricingPage,
@@ -72,7 +73,7 @@ function PricingPage() {
 
       <main style={{ maxWidth: 1100, margin: "0 auto", padding: "48px 24px" }}>
         <div style={{ textAlign: "center", marginBottom: 48 }}>
-          <div style={{ fontSize: 48, marginBottom: 8 }}>💚</div>
+          <div className="flex justify-center mb-2"><Icon name="heart" size={48} /></div>
           <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 8 }}>
             Simple, Transparent Pricing
           </h1>

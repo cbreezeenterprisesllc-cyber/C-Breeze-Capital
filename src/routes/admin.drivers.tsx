@@ -6,6 +6,7 @@ import { Card, CardHeader, CardBody } from "~/components/Card";
 import { Button } from "~/components/Button";
 import { Badge } from "~/components/Badge";
 import { Modal } from "~/components/Modal";
+import { Icon } from "~/components/Icon";
 
 export const Route = createFileRoute("/admin/drivers")({
   component: AdminDriverApplications,
@@ -63,7 +64,7 @@ function AdminDriverApplications() {
   return (
     <div className="animate-fade-in">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-[var(--font-heading)] gradient-text-green">🚗 Driver Applications</h1>
+        <h1 className="text-3xl font-[var(--font-heading)] gradient-text-green"><Icon name="car" size={26} /> Driver Applications</h1>
       </div>
 
       {/* Filter tabs */}
@@ -89,7 +90,7 @@ function AdminDriverApplications() {
         </div>
       ) : applications.length === 0 ? (
         <div className="text-center py-20 text-[var(--color-neutral-400)]">
-          <div className="text-5xl mb-4">📭</div>
+          <div className="text-5xl mb-4"><Icon name="search" size={48} /></div>
           <p className="text-lg">No {filter} applications</p>
         </div>
       ) : (
@@ -105,7 +106,7 @@ function AdminDriverApplications() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-[var(--color-primary-100)] flex items-center justify-center text-lg">
-                    👤
+                    <Icon name="person" size={20} />
                   </div>
                   <div>
                     <p className="font-semibold">{app.full_name}</p>
@@ -127,7 +128,7 @@ function AdminDriverApplications() {
       )}
 
       {/* Detail Modal */}
-      <Modal open={!!selectedApp} onClose={() => setSelectedApp(null)} title="🚗 Application Details" size="lg">
+      <Modal open={!!selectedApp} onClose={() => setSelectedApp(null)} title="Application Details" size="lg">
         {selectedApp && (
           <div className="space-y-6 animate-scale-in">
             <div className="grid grid-cols-2 gap-4">
@@ -186,14 +187,14 @@ function AdminDriverApplications() {
                   className="flex-1"
                   onClick={() => handleAction(selectedApp.id, "approve")}
                 >
-                  ✅ Approve Application
+                  <Icon name="check" size={16} /> Approve Application
                 </Button>
                 <Button
                   variant="danger"
                   className="flex-1"
                   onClick={() => handleAction(selectedApp.id, "reject")}
                 >
-                  ❌ Reject Application
+                  <Icon name="cross" size={16} /> Reject Application
                 </Button>
               </div>
             )}

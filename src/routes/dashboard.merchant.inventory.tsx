@@ -6,17 +6,18 @@ import { Badge } from "~/components/Badge";
 import { Input } from "~/components/Input";
 import { Select } from "~/components/Select";
 import { Modal } from "~/components/Modal";
+import { Icon } from "~/components/Icon";
 
 export const Route = createFileRoute("/dashboard/merchant/inventory")({
   component: InventoryPage,
 });
 
 const mockProducts = [
-  { id: "p1", name: "Blue Dream", category: "Flower", strain: "Sativa", stock: 45, price: 45.00, thc: "22%", cbd: "0.1%", image: "🍃" },
-  { id: "p2", name: "Gummies Pack", category: "Edible", strain: "", stock: 120, price: 28.00, thc: "10mg", cbd: "0%", image: "🍬" },
-  { id: "p3", name: "CBD Tincture", category: "Tincture", strain: "", stock: 30, price: 35.00, thc: "0%", cbd: "15%", image: "💧" },
-  { id: "p4", name: "OG Kush", category: "Flower", strain: "Indica", stock: 0, price: 50.00, thc: "25%", cbd: "0.2%", image: "🍃" },
-  { id: "p5", name: "Pre-Roll 3pk", category: "Flower", strain: "Hybrid", stock: 65, price: 22.00, thc: "20%", cbd: "0.1%", image: "🚬" },
+  { id: "p1", name: "Blue Dream", category: "Flower", strain: "Sativa", stock: 45, price: 45.00, thc: "22%", cbd: "0.1%" },
+  { id: "p2", name: "Gummies Pack", category: "Edible", strain: "", stock: 120, price: 28.00, thc: "10mg", cbd: "0%" },
+  { id: "p3", name: "CBD Tincture", category: "Tincture", strain: "", stock: 30, price: 35.00, thc: "0%", cbd: "15%" },
+  { id: "p4", name: "OG Kush", category: "Flower", strain: "Indica", stock: 0, price: 50.00, thc: "25%", cbd: "0.2%" },
+  { id: "p5", name: "Pre-Roll 3pk", category: "Flower", strain: "Hybrid", stock: 65, price: 22.00, thc: "20%", cbd: "0.1%" },
 ];
 
 function InventoryPage() {
@@ -40,13 +41,13 @@ function InventoryPage() {
   return (
     <div className="animate-fade-in">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-[var(--font-heading)] gradient-text-green">📦 Inventory</h1>
+        <h1 className="text-3xl font-[var(--font-heading)] gradient-text-green flex items-center gap-2"><Icon name="package" size={28} /> Inventory</h1>
         <Button variant="neon" onClick={openAdd}>+ Add Product</Button>
       </div>
 
       <div className="flex gap-4 mb-6">
         <div className="flex-1 max-w-xs">
-          <Input placeholder="🔍 Search products..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <select className="px-4 py-2 rounded-xl border border-[var(--color-neutral-200)] bg-white text-sm focus:border-[var(--color-primary-400)] focus:ring-1 focus:ring-[var(--color-primary-400)] transition-colors" value={catFilter} onChange={e => setCatFilter(e.target.value)}>
           <option value="all">All Categories</option>
@@ -95,10 +96,10 @@ function InventoryPage() {
 
       {filtered.length === 0 && <p className="text-center py-12 text-[var(--color-neutral-400)]">No products match your filters.</p>}
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title={editing ? "✏️ Edit Product" : "➕ Add Product"} size="md">
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={<span className="flex items-center gap-2"><Icon name={editing ? "pencil" : "package"} size={18} /> {editing ? "Edit Product" : "Add Product"}</span>} size="md">
         <div className="space-y-4 animate-scale-in">
           <Input label="Product Name" defaultValue={editing?.name} placeholder="e.g. Blue Dream" />
-          <Select label="Category" options={[{ value: "flower", label: "🌿 Flower" }, { value: "edible", label: "🍬 Edible" }, { value: "tincture", label: "💧 Tincture" }, { value: "vape", label: "💨 Vape" }, { value: "topical", label: "🧴 Topical" }]} />
+          <Select label="Category" options={[{ value: "flower", label: "Flower" }, { value: "edible", label: "Edible" }, { value: "tincture", label: "Tincture" }, { value: "vape", label: "Vape" }, { value: "topical", label: "Topical" }]} />
           <div className="flex gap-4">
             <div className="flex-1"><Input label="Price ($)" type="number" defaultValue={editing?.price} /></div>
             <div className="flex-1"><Input label="Stock" type="number" defaultValue={editing?.stock} /></div>

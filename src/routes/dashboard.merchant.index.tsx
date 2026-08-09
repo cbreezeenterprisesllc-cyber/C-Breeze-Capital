@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Card, CardHeader, CardBody } from "~/components/Card";
 import { Button } from "~/components/Button";
 import { Badge } from "~/components/Badge";
+import { Icon, type IconName } from "~/components/Icon";
 
 export const Route = createFileRoute("/dashboard/merchant/")({
   component: MerchantDashboard,
@@ -19,8 +20,8 @@ const statusBadge: Record<string, "warning" | "info" | "success" | "primary" | "
   pending: "warning", preparing: "primary", in_transit: "success", delivered: "neutral",
 };
 
-const statusIcons: Record<string, string> = {
-  pending: "⏳", preparing: "👨‍🍳", in_transit: "🚗", delivered: "✅",
+const statusIcons: Record<string, any> = {
+  pending: <Icon name="clock" size={12} />, preparing: <Icon name="chef" size={12} />, in_transit: <Icon name="car" size={12} />, delivered: <Icon name="check" size={12} />,
 };
 
 function MerchantDashboard() {
@@ -29,8 +30,8 @@ function MerchantDashboard() {
   return (
     <div className="animate-fade-in">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-[var(--font-heading)] gradient-text-green">
-          📊 Dashboard
+        <h1 className="text-3xl font-[var(--font-heading)] gradient-text-green flex items-center gap-2">
+          <Icon name="chart" size={28} /> Dashboard
         </h1>
         <select className="px-3 py-2 rounded-xl border border-[var(--color-neutral-200)] bg-white text-sm focus:border-[var(--color-primary-400)] focus:ring-1 focus:ring-[var(--color-primary-400)] transition-colors" value={period}>
           <option value="7d">Last 7 days</option>
@@ -41,16 +42,16 @@ function MerchantDashboard() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {[{ label: "Total Sales", value: "$12,420", change: "+12%", up: true, icon: "💰" },
-          { label: "Orders", value: "147", change: "+8%", up: true, icon: "📦" },
-          { label: "Active Items", value: "32", change: "—", up: null, icon: "🌿" },
-          { label: "Avg Delivery", value: "18min", change: "-2min", up: true, icon: "🚚" },
+        {[{ label: "Total Sales", value: "$12,420", change: "+12%", up: true, icon: "money" as IconName },
+          { label: "Orders", value: "147", change: "+8%", up: true, icon: "package" as IconName },
+          { label: "Active Items", value: "32", change: "—", up: null, icon: "leaf" as IconName },
+          { label: "Avg Delivery", value: "18min", change: "-2min", up: true, icon: "truck" as IconName },
         ].map((kpi, i) => (
           <Card key={i} padding="md" hover glow className="animate-fade-in-up" style={{ animationDelay: `${i * 80}ms` }}>
             <CardBody>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm text-[var(--color-neutral-500)]">{kpi.label}</p>
-                <span className="text-lg">{kpi.icon}</span>
+                <Icon name={kpi.icon} size={18} />
               </div>
               <p className="text-3xl font-bold gradient-text-green">{kpi.value}</p>
               {kpi.change !== "—" ? (
@@ -68,7 +69,7 @@ function MerchantDashboard() {
       {/* Recent Orders */}
       <Card padding="lg" className="mb-8 animate-fade-in-up delay-200">
         <CardHeader>
-          <h2 className="text-lg font-[var(--font-heading)] text-[var(--color-neutral-800)]">📋 Recent Orders</h2>
+          <h2 className="text-lg font-[var(--font-heading)] text-[var(--color-neutral-800)] flex items-center gap-2"><Icon name="clipboard" size={18} /> Recent Orders</h2>
           <Button variant="ghost" size="sm">View All →</Button>
         </CardHeader>
         <CardBody>
@@ -104,8 +105,9 @@ function MerchantDashboard() {
       {/* Live Orders */}
       <Card padding="lg" className="animate-fade-in-up delay-300">
         <CardHeader>
-          <h2 className="text-lg font-[var(--font-heading)] text-[var(--color-neutral-800)]">
-            🟢 Live Orders <span className="text-sm text-[var(--color-neutral-400)] font-normal">(3)</span>
+          <h2 className="text-lg font-[var(--font-heading)] text-[var(--color-neutral-800)] flex items-center gap-2">
+            <span className="relative flex h-3 w-3 mr-1"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--color-success)] opacity-75" /><span className="relative inline-flex rounded-full h-3 w-3 bg-[var(--color-success)]" /></span>
+            Live Orders <span className="text-sm text-[var(--color-neutral-400)] font-normal">(3)</span>
           </h2>
         </CardHeader>
         <CardBody className="space-y-3">

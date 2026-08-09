@@ -4,6 +4,7 @@ import { TopbarNav } from "~/components/Navigation";
 import { Button } from "~/components/Button";
 import { Card, CardBody } from "~/components/Card";
 import { Badge } from "~/components/Badge";
+import { Icon } from "~/components/Icon";
 
 const getTenants = createServerFn({ method: "GET" }).handler(async () => {
   const { getDb } = await import("~/lib/db");
@@ -44,7 +45,7 @@ function Dispensaries() {
 
         {tenants.length === 0 ? (
           <div className="text-center py-20 text-[var(--color-neutral-400)] animate-fade-in">
-            <div className="text-6xl mb-4">🌱</div>
+            <div className="mb-4 flex justify-center"><Icon name="leaf" size={56} /></div>
             <p className="text-lg">No dispensaries available yet. Check back soon!</p>
           </div>
         ) : (

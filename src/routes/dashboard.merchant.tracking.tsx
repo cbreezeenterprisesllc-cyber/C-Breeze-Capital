@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Card, CardHeader, CardBody, CardFooter } from "~/components/Card";
 import { Button } from "~/components/Button";
 import { Badge } from "~/components/Badge";
+import { Icon } from "~/components/Icon";
 
 export const Route = createFileRoute("/dashboard/merchant/tracking")({
   component: TrackingPage,
@@ -31,7 +32,7 @@ function TrackingPage() {
             <CardBody>
               <div className="h-80 bg-[var(--color-primary-100)] rounded-xl flex items-center justify-center text-[var(--color-primary-400)]">
                 <div className="text-center">
-                  <div className="text-5xl mb-3">🗺️</div>
+                  <div className="text-5xl mb-3"><Icon name="target" size={48} /></div>
                   <p className="text-lg font-medium">Map View</p>
                   <p className="text-sm">Driver locations and routes appear here</p>
                 </div>
@@ -81,7 +82,7 @@ function TrackingPage() {
                   <td className="py-3 font-medium">{d.name}</td>
                   <td className="py-3"><Badge variant={d.status === "Active" ? "success" : d.status === "Idle" ? "warning" : "neutral"} size="sm">{d.status}</Badge></td>
                   <td className="py-3">{d.orders}</td>
-                  <td className="py-3">⭐ {d.rating}</td>
+                  <td className="py-3"><Icon name="star" size={14} /> {d.rating}</td>
                   <td className="py-3"><Button variant="ghost" size="sm">View</Button></td>
                 </tr>
               ))}
