@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">GreenExpress</string>
+    <string name="title_activity_main">GreenExpress</string>
+    <string name="package_name">com.greenexpress.delivery</string>
+    <string name="custom_url_scheme">com.greenexpress.delivery</string>
+</resources>
