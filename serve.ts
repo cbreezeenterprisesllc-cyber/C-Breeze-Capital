@@ -27,7 +27,8 @@ if (IS_PRIMARY) {
       const prevCmd = await Bun.file(`/proc/${prev}/cmdline`).text().catch(() => "");
       if (prevCmd.includes("serve.ts")) {
         try { process.kill(prev, "SIGTERM"); } catch { /* already gone */ }
-        await Bun.sleep(500);
+        // Give the old process time to release the port before we bind it.
+        await Bun.sleep(800);
       }
     }
     await Bun.write(PID_FILE, String(process.pid));
