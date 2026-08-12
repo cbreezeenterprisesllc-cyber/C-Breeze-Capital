@@ -12,14 +12,42 @@ const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? "0.0.0.0";
 const CLIENT_DIR = `${import.meta.dir}/dist/client`;
 const PID_FILE = "/tmp/team-site.pid";
+// Canonical public port is 3000. The platform's boot-time backstop launches us with
+// PORT=80 — that instance is SECONDARY: it never touches the pid file, so it can't
+// kill the canonical server. Only the port-3000 instance enforces single-instance.
+const IS_PRIMARY = PORT === 3000;
 
-// PID file management — disabled to avoid permission issues on restart
-// const prev = Number(await Bun.file(PID_FILE).text().catch(() => ""));
-// if (prev && prev !== process.pid) {
-//   try { process.kill(prev); } catch { /* already gone */ }
-//   await Bun.sleep(500);
-// }
-// await Bun.write(PID_FILE, String(process.pid));
+// PID file — single-instance enforcement for the primary. A new primary supersedes
+// the old one so restarts (publish.sh / watchdog) never collide. Guard against pid
+// reuse: only kill if the pid belongs to one of our server processes.
+if (IS_PRIMARY) {
+  try {
+    const prev = Number(await Bun.file(PID_FILE).text().catch(() => ""));
+    if (prev && prev !== process.pid && Number.isInteger(prev)) {
+      const prevCmd = await Bun.file(`/proc/${prev}/cmdline`).text().catch(() => "");
+      if (prevCmd.includes("serve.ts")) {
+        try { process.kill(prev, "SIGTERM"); } catch { /* already gone */ }
+        await Bun.sleep(500);
+      }
+    }
+    await Bun.write(PID_FILE, String(process.pid));
+  } catch (e) {
+    console.error("pid file warning:", e);
+  }
+  process.on("exit", () => {
+    try { Bun.file(PID_FILE).unlink(); } catch { /* ignore */ }
+  });
+}
+
+// Boot bootstrap: ensure the watchdog is running so the canonical port comes up even
+// when the platform only starts us on port 80 (e.g. after a machine replacement).
+// watchdog.sh self-detaches and no-ops if a watchdog is already alive.
+try {
+  const wd = Bun.spawn(["bash", `${import.meta.dir}/watchdog.sh`], {
+    stdio: ["ignore", "ignore", "ignore"],
+  });
+  (wd as unknown as { unref?: () => void }).unref?.();
+} catch { /* watchdog is best-effort */ }
 
 // ── API route handlers ──────────────────────────────────────────────
 async function handleApiRequest(req: Request): Promise<Response | null> {
