@@ -5,6 +5,7 @@ import { TopbarNav } from "~/components/Navigation";
 import { Button } from "~/components/Button";
 import { Badge } from "~/components/Badge";
 import { Card, CardHeader, CardBody } from "~/components/Card";
+import { Icon } from "~/components/Icon";
 
 const getOrder = createServerFn({ method: "GET" }).handler(async (ctx) => {
   const url = new URL(ctx.request.url);
@@ -41,13 +42,13 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
-const STATUS_ICONS: Record<string, string> = {
-  pending: "📝",
-  confirmed: "✅",
-  preparing: "👨‍🍳",
-  in_transit: "🚗",
-  delivered: "🎉",
-  cancelled: "❌",
+const STATUS_ICONS: Record<string, any> = {
+  pending: <Icon name="pencil" size={14} />,
+  confirmed: <Icon name="check" size={14} />,
+  preparing: <Icon name="chef" size={14} />,
+  in_transit: <Icon name="car" size={14} />,
+  delivered: <Icon name="celebration" size={14} />,
+  cancelled: <Icon name="cross" size={14} />,
 };
 
 function TrackOrder() {
@@ -91,10 +92,10 @@ function TrackOrder() {
       <div className="min-h-dvh bg-[var(--surface-secondary)] flex items-center justify-center">
         <Card padding="lg" className="max-w-md w-full text-center animate-fade-in">
           <CardBody>
-            <div className="text-6xl mb-4">🔍</div>
+            <div className="mb-4 flex justify-center"><Icon name="search" size={56} /></div>
             <h1 className="text-2xl font-[var(--font-heading)] text-[var(--color-neutral-600)] mb-2">Order not found</h1>
             <p className="text-[var(--color-neutral-500)] mb-6">This order doesn't exist or has been removed.</p>
-            <Link to="/dispensaries"><Button variant="neon">🌿 Browse Dispensaries</Button></Link>
+            <Link to="/dispensaries"><Button variant="neon" className="inline-flex items-center gap-2"><Icon name="leaf" size={16} /> Browse Dispensaries</Button></Link>
           </CardBody>
         </Card>
       </div>
@@ -123,7 +124,7 @@ function TrackOrder() {
       <main className="max-w-2xl mx-auto px-6 py-12 animate-fade-in">
         {/* Header */}
         <div className="text-center mb-10">
-          <div className="text-5xl mb-4">{isCancelled ? "❌" : "🚚"}</div>
+          <div className="flex justify-center mb-4">{isCancelled ? <Icon name="cross" size={48} /> : <Icon name="truck" size={48} />}</div>
           <h1 className="text-4xl font-[var(--font-heading)] gradient-text-green mb-2">
             {isCancelled ? "Order Cancelled" : "Order Tracking"}
           </h1>
@@ -134,7 +135,7 @@ function TrackOrder() {
             variant={isCancelled ? "error" : currentStepIndex >= 4 ? "success" : currentStepIndex >= 2 ? "accent" : "primary"}
             size="md"
             dot
-            className="mt-2"
+            className="mt-2 inline-flex items-center gap-1"
           >
             {STATUS_LABELS[order.status] || order.status} {STATUS_ICONS[order.status]}
           </Badge>
@@ -169,8 +170,8 @@ function TrackOrder() {
                 })}
               </div>
               {order.status === "in_transit" && (
-                <div className="text-center text-sm text-[var(--color-primary-600)] animate-pulse">
-                  🚗 Your driver is on the way!
+                <div className="text-center text-sm text-[var(--color-primary-600)] animate-pulse flex items-center justify-center gap-1">
+                  <Icon name="car" size={16} /> Your driver is on the way!
                 </div>
               )}
             </CardBody>
@@ -181,7 +182,7 @@ function TrackOrder() {
         {isCancelled && (
           <Card padding="lg" className="mb-8 border-[var(--color-error)]/30 animate-scale-in">
             <CardBody className="text-center">
-              <div className="text-4xl mb-3">❌</div>
+              <div className="flex justify-center mb-3"><Icon name="cross" size={40} /></div>
               <p className="text-[var(--color-error)] font-medium">This order has been cancelled.</p>
               <p className="text-sm text-[var(--color-neutral-500)] mt-1">No charges were made.</p>
             </CardBody>
@@ -191,8 +192,8 @@ function TrackOrder() {
         {/* Order Details */}
         <Card padding="lg" className="mb-6">
           <CardHeader>
-            <h2 className="text-lg font-[var(--font-heading)] text-[var(--color-neutral-800)]">
-              📋 Order Details
+            <h2 className="text-lg font-[var(--font-heading)] text-[var(--color-neutral-800)] flex items-center gap-2">
+              <Icon name="clipboard" size={18} /> Order Details
             </h2>
           </CardHeader>
           <CardBody>
@@ -217,7 +218,7 @@ function TrackOrder() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--color-neutral-500)]">Delivery Fee</span>
-                <span className="font-medium">{order.delivery_fee > 0 ? `$${order.delivery_fee.toFixed(2)}` : "Free 🎉"}</span>
+                <span className="font-medium">{order.delivery_fee > 0 ? `${order.delivery_fee.toFixed(2)}` : "Free"}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--color-neutral-500)]">Tax</span>
@@ -235,8 +236,8 @@ function TrackOrder() {
         {parsedItems.length > 0 && (
           <Card padding="lg">
             <CardHeader>
-              <h2 className="text-lg font-[var(--font-heading)] text-[var(--color-neutral-800)]">
-                🛍️ Items
+              <h2 className="text-lg font-[var(--font-heading)] text-[var(--color-neutral-800)] flex items-center gap-2">
+                <Icon name="package" size={18} /> Items
               </h2>
             </CardHeader>
             <CardBody>
@@ -258,7 +259,7 @@ function TrackOrder() {
         {/* Actions */}
         <div className="mt-8 text-center">
           <Link to="/dispensaries">
-            <Button variant="outline">🌿 Browse More</Button>
+            <Button variant="outline" className="inline-flex items-center gap-2"><Icon name="leaf" size={16} /> Browse More</Button>
           </Link>
         </div>
       </main>
