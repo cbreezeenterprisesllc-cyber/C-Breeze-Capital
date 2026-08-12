@@ -454,7 +454,7 @@
 
 .leaf-spinner::before,
 .leaf-spinner::after {
-  content: "🍃";
+  content: "◆";
   position: absolute;
   font-size: 1.5rem;
   animation: spinLeaf 1s ease-in-out infinite;

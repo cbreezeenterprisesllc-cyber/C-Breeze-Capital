@@ -7,6 +7,7 @@ import { Card, CardHeader, CardBody } from "~/components/Card";
 import { Input } from "~/components/Input";
 import { Select } from "~/components/Select";
 import { Badge } from "~/components/Badge";
+import { Icon, type IconName } from "~/components/Icon";
 
 export const Route = createFileRoute("/drivers/apply")({
   component: DriverApplyPage,
@@ -16,13 +17,13 @@ const DELIVERY_STATES = ["AK", "AZ", "CA", "CO", "CT", "DC", "DE", "IL", "MA", "
 const STATE_OPTIONS = DELIVERY_STATES.map(state => ({ value: state, label: state }));
 
 const STEPS = [
-  { num: 1, label: "Personal Info", icon: "👤" },
-  { num: 2, label: "License", icon: "🪪" },
-  { num: 3, label: "Vehicle", icon: "🚗" },
-  { num: 4, label: "Insurance", icon: "🛡️" },
-  { num: 5, label: "Documents", icon: "📄" },
-  { num: 6, label: "Compliance", icon: "📋" },
-  { num: 7, label: "Review", icon: "✅" },
+  { num: 1, label: "Personal Info", icon: "person" as IconName },
+  { num: 2, label: "License", icon: "id-card" as IconName },
+  { num: 3, label: "Vehicle", icon: "car" as IconName },
+  { num: 4, label: "Insurance", icon: "shield" as IconName },
+  { num: 5, label: "Documents", icon: "settings" as IconName },
+  { num: 6, label: "Compliance", icon: "clipboard" as IconName },
+  { num: 7, label: "Review", icon: "check" as IconName },
 ];
 
 function DriverApplyPage() {
@@ -81,14 +82,14 @@ function DriverApplyPage() {
       <div className="min-h-dvh bg-[var(--surface-secondary)]">
         <TopbarNav branding={{ title: "GreenExpress" }} items={[{ label: "Home", href: "/" }]} />
         <main className="max-w-lg mx-auto px-6 py-20 text-center animate-scale-in">
-          <div className="text-6xl mb-4">{result.success ? "🎉" : "❌"}</div>
+          <div className="flex justify-center mb-4">{result.success ? <Icon name="celebration" size={64} /> : <Icon name="cross" size={64} />}</div>
           <h1 className="text-3xl font-[var(--font-heading)] gradient-text-green mb-4">
             {result.success ? "Application Submitted!" : "Submission Failed"}
           </h1>
           <p className="text-[var(--color-neutral-500)] mb-8">{result.message}</p>
           {result.success && (
             <Link to="/drivers/status">
-              <Button variant="neon">📋 Check Application Status</Button>
+              <Button variant="neon" className="inline-flex items-center gap-2"><Icon name="clipboard" size={18} /> Check Application Status</Button>
             </Link>
           )}
           {!result.success && (
@@ -111,7 +112,7 @@ function DriverApplyPage() {
 
       <main className="max-w-2xl mx-auto px-6 py-12">
         <div className="text-center mb-10 animate-fade-in-up">
-          <div className="text-5xl mb-4">🚗</div>
+          <div className="flex justify-center mb-4"><Icon name="car" size={48} /></div>
           <h1 className="text-4xl font-[var(--font-heading)] gradient-text-green mb-2">
             Drive With GreenExpress
           </h1>
@@ -148,8 +149,8 @@ function DriverApplyPage() {
 
         <Card padding="lg" className="animate-fade-in-up delay-200">
           <CardHeader>
-            <h2 className="text-lg font-[var(--font-heading)]">
-              {STEPS[step - 1].icon} Step {step}: {STEPS[step - 1].label}
+            <h2 className="text-lg font-[var(--font-heading)] flex items-center gap-2">
+              <Icon name={STEPS[step - 1].icon} size={20} /> Step {step}: {STEPS[step - 1].label}
             </h2>
           </CardHeader>
           <CardBody>
@@ -175,8 +176,8 @@ function DriverApplyPage() {
             {/* Step 2: License */}
             {step === 2 && (
               <div className="space-y-4 animate-fade-in">
-                <div className="p-4 rounded-xl bg-[var(--color-primary-100)] text-sm mb-4">
-                  🪪 You must have a valid US driver's license. All information must match your physical license exactly.
+                <div className="p-4 rounded-xl bg-[var(--color-primary-100)] text-sm mb-4 flex items-start gap-2">
+                  <Icon name="id-card" size={16} className="mt-0.5 shrink-0" /> You must have a valid US driver's license. All information must match your physical license exactly.
                 </div>
                 <Input label="Driver's License Number" placeholder="D123456789" value={form.driversLicenseNumber} onChange={e => update("driversLicenseNumber", e.target.value)} />
                 <div className="grid grid-cols-2 gap-4">
@@ -189,8 +190,8 @@ function DriverApplyPage() {
             {/* Step 3: Vehicle */}
             {step === 3 && (
               <div className="space-y-4 animate-fade-in">
-                <div className="p-4 rounded-xl bg-[var(--color-amber-500)]/10 text-sm mb-4">
-                  🚗 Your vehicle must be in good condition, insured, and have enough space for deliveries.
+                <div className="p-4 rounded-xl bg-[var(--color-amber-500)]/10 text-sm mb-4 flex items-start gap-2">
+                  <Icon name="car" size={16} className="mt-0.5 shrink-0" /> Your vehicle must be in good condition, insured, and have enough space for deliveries.
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <Input label="Make" placeholder="Toyota" value={form.vehicleMake} onChange={e => update("vehicleMake", e.target.value)} />
@@ -211,8 +212,8 @@ function DriverApplyPage() {
             {/* Step 4: Insurance */}
             {step === 4 && (
               <div className="space-y-4 animate-fade-in">
-                <div className="p-4 rounded-xl bg-[var(--color-primary-100)] text-sm mb-4">
-                  🛡️ You must have active auto insurance. We'll verify your coverage during the review process.
+                <div className="p-4 rounded-xl bg-[var(--color-primary-100)] text-sm mb-4 flex items-start gap-2">
+                  <Icon name="shield" size={16} className="mt-0.5 shrink-0" /> You must have active auto insurance. We'll verify your coverage during the review process.
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <Input label="Insurance Provider" placeholder="Progressive" value={form.insuranceProvider} onChange={e => update("insuranceProvider", e.target.value)} />
@@ -254,8 +255,8 @@ function DriverApplyPage() {
                     <div><p className="font-medium text-sm">{title}</p><p className="text-xs text-[var(--color-neutral-500)] mt-1">{text}</p></div>
                   </label>
                 ))}
-                <div className="p-3 rounded-lg bg-[var(--color-primary-50)] text-xs text-[var(--color-neutral-600)]">
-                  📋 <strong>State-specific requirements vary.</strong> We support delivery onboarding across AK, AZ, CA, CO, CT, DC, DE, IL, MA, MD, ME, MI, MN, MO, MT, NJ, NM, NV, NY, OH, OR, RI, VA, VT, and WA. Licensing, worker classification, vehicle limits, team requirements, order/payment rules, delivery zones, operating hours, and documentation can differ by state; Oregon deliveries, for example, must use OLCC-licensed dispensaries, remain within approved zones, and follow applicable delivery-hour limits. Your state-specific requirements are reviewed during onboarding training.
+                <div className="p-3 rounded-lg bg-[var(--color-primary-50)] text-xs text-[var(--color-neutral-600)] flex items-start gap-1">
+                  <Icon name="clipboard" size={12} className="mt-0.5 shrink-0" /> <strong>State-specific requirements vary.</strong> We support delivery onboarding across AK, AZ, CA, CO, CT, DC, DE, IL, MA, MD, ME, MI, MN, MO, MT, NJ, NM, NV, NY, OH, OR, RI, VA, VT, and WA. Licensing, worker classification, vehicle limits, team requirements, order/payment rules, delivery zones, operating hours, and documentation can differ by state; Oregon deliveries, for example, must use OLCC-licensed dispensaries, remain within approved zones, and follow applicable delivery-hour limits. Your state-specific requirements are reviewed during onboarding training.
                 </div>
               </div>
             )}
@@ -263,8 +264,8 @@ function DriverApplyPage() {
             {/* Step 7: Review */}
             {step === 7 && (
               <div className="space-y-4 animate-fade-in">
-                <div className="p-4 rounded-xl bg-[var(--color-success)]/5 border border-[var(--color-success)]/20 text-sm mb-4">
-                  ✅ Please review your application details before submitting.
+                <div className="p-4 rounded-xl bg-[var(--color-success)]/5 border border-[var(--color-success)]/20 text-sm mb-4 flex items-center gap-2">
+                  <Icon name="check" size={16} /> Please review your application details before submitting.
                 </div>
                 {[
                   { label: "Full Name", value: form.fullName },
@@ -296,8 +297,8 @@ function DriverApplyPage() {
                   Continue →
                 </Button>
               ) : (
-                <Button variant="neon" onClick={handleSubmit} loading={submitting} disabled={submitting}>
-                  🚀 Submit Application
+                <Button variant="neon" onClick={handleSubmit} loading={submitting} disabled={submitting} className="inline-flex items-center gap-2">
+                  <Icon name="rocket" size={16} /> Submit Application
                 </Button>
               )}
             </div>
@@ -307,12 +308,12 @@ function DriverApplyPage() {
         {/* Benefits */}
         <div className="grid grid-cols-3 gap-4 mt-8 animate-fade-in-up delay-300">
           {[
-            { icon: "💸", title: "Flexible Hours", desc: "Drive when you want" },
-            { icon: "📈", title: "Great Earnings", desc: "Competitive pay + tips" },
-            { icon: "🎯", title: "Local Routes", desc: "Stay in your area" },
+            { icon: "dollars" as IconName, title: "Flexible Hours", desc: "Drive when you want" },
+            { icon: "chart" as IconName, title: "Great Earnings", desc: "Competitive pay + tips" },
+            { icon: "target" as IconName, title: "Local Routes", desc: "Stay in your area" },
           ].map((b, i) => (
             <div key={i} className="text-center p-4 rounded-xl bg-[var(--surface-primary)] border border-[var(--color-neutral-200)]">
-              <div className="text-2xl mb-1">{b.icon}</div>
+              <div className="mb-1 flex justify-center"><Icon name={b.icon} size={24} /></div>
               <p className="font-semibold text-xs">{b.title}</p>
               <p className="text-[10px] text-[var(--color-neutral-500)]">{b.desc}</p>
             </div>

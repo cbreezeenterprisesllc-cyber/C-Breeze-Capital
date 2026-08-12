@@ -5,6 +5,7 @@ import { Button } from "~/components/Button";
 import { Badge } from "~/components/Badge";
 import { Input } from "~/components/Input";
 import { Modal } from "~/components/Modal";
+import { Icon } from "~/components/Icon";
 
 export const Route = createFileRoute("/admin/tenants")({
   component: TenantsPage,
@@ -28,7 +29,7 @@ function TenantsPage() {
   return (
     <div className="animate-fade-in">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-[var(--font-heading)] gradient-text-green">🏪 Tenants</h1>
+        <h1 className="text-3xl font-[var(--font-heading)] gradient-text-green flex items-center gap-2"><Icon name="shop" size={28} /> Tenants</h1>
         <Button variant="neon" onClick={openAdd}>+ Add Tenant</Button>
       </div>
 
@@ -69,7 +70,7 @@ function TenantsPage() {
         </table>
       </Card>
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title={editing ? "✏️ Edit Tenant" : "🏪 Add Tenant"} size="md">
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={<span className="flex items-center gap-2"><Icon name={editing ? "pencil" : "shop"} size={18} /> {editing ? "Edit Tenant" : "Add Tenant"}</span>} size="md">
         <div className="space-y-4 animate-scale-in">
           <Input label="Store Name" defaultValue={editing?.store} />
           <Input label="Business Name" defaultValue={editing?.name} />
@@ -82,7 +83,7 @@ function TenantsPage() {
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <Button variant="outline" onClick={() => setShowModal(false)}>Cancel</Button>
-          <Button variant="neon" onClick={() => setShowModal(false)}>{editing ? "💾 Save" : "✅ Create Tenant"}</Button>
+          <Button variant="neon" onClick={() => setShowModal(false)} className="inline-flex items-center gap-1">{editing ? <><Icon name="pencil" size={14} /> Save</> : <><Icon name="check" size={14} /> Create Tenant</>}</Button>
         </div>
       </Modal>
     </div>

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Card, CardHeader, CardBody } from "~/components/Card";
 import { Badge } from "~/components/Badge";
+import { Icon } from "~/components/Icon";
 
 export const Route = createFileRoute("/dashboard/merchant/analytics")({
   component: AnalyticsPage,
@@ -34,11 +35,11 @@ function AnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <Card padding="lg">
           <CardHeader><h2 className="text-[var(--text-h4)] font-[var(--font-heading)]">Revenue</h2></CardHeader>
-          <CardBody><div className="h-48 bg-[var(--color-primary-100)] rounded-xl flex items-center justify-center text-[var(--color-primary-400)]"><div className="text-center"><div className="text-4xl mb-2">📈</div><p className="text-sm">Line chart: Revenue over time</p></div></div></CardBody>
+          <CardBody><div className="h-48 bg-[var(--color-primary-100)] rounded-xl flex items-center justify-center text-[var(--color-primary-400)]"><div className="text-center"><div className="text-4xl mb-2"><Icon name="chart" size={48} /></div><p className="text-sm">Line chart: Revenue over time</p></div></div></CardBody>
         </Card>
         <Card padding="lg">
           <CardHeader><h2 className="text-[var(--text-h4)] font-[var(--font-heading)]">Order Volume</h2></CardHeader>
-          <CardBody><div className="h-48 bg-[var(--color-neutral-100)] rounded-xl flex items-center justify-center text-[var(--color-neutral-400)]"><div className="text-center"><div className="text-4xl mb-2">📊</div><p className="text-sm">Bar chart: Orders per day</p></div></div></CardBody>
+          <CardBody><div className="h-48 bg-[var(--color-neutral-100)] rounded-xl flex items-center justify-center text-[var(--color-neutral-400)]"><div className="text-center"><div className="text-4xl mb-2"><Icon name="chart" size={48} /></div><p className="text-sm">Bar chart: Orders per day</p></div></div></CardBody>
         </Card>
       </div>
 

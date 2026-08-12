@@ -6,6 +6,7 @@ import { Button } from "~/components/Button";
 import { Card, CardHeader, CardBody } from "~/components/Card";
 import { Input } from "~/components/Input";
 import { Badge } from "~/components/Badge";
+import { Icon } from "~/components/Icon";
 
 export const Route = createFileRoute("/drivers/status")({
   component: DriverStatusPage,
@@ -36,12 +37,19 @@ function DriverStatusPage() {
     }
   };
 
-  const statusConfig: Record<string, { variant: "primary" | "success" | "warning" | "error" | "neutral"; label: string; icon: string }> = {
-    pending: { variant: "warning", label: "Under Review", icon: "⏳" },
-    approved: { variant: "success", label: "Approved 🎉", icon: "✅" },
-    rejected: { variant: "error", label: "Not Approved", icon: "❌" },
-    suspended: { variant: "neutral", label: "Suspended", icon: "⏸️" },
-    none: { variant: "neutral", label: "Not Found", icon: "🔍" },
+  const statusIconMap: Record<string, React.ReactNode> = {
+    pending: <Icon name="clock" size={14} />,
+    approved: <Icon name="check" size={14} />,
+    rejected: <Icon name="cross" size={14} />,
+    suspended: <Icon name="clock" size={14} />,
+    none: <Icon name="search" size={14} />,
+  };
+  const statusConfig: Record<string, { variant: "primary" | "success" | "warning" | "error" | "neutral"; label: string }> = {
+    pending: { variant: "warning", label: "Under Review" },
+    approved: { variant: "success", label: "Approved" },
+    rejected: { variant: "error", label: "Not Approved" },
+    suspended: { variant: "neutral", label: "Suspended" },
+    none: { variant: "neutral", label: "Not Found" },
   };
 
   return (
@@ -57,7 +65,7 @@ function DriverStatusPage() {
 
       <main className="max-w-lg mx-auto px-6 py-12 animate-fade-in">
         <div className="text-center mb-8">
-          <div className="text-5xl mb-4">📋</div>
+          <div className="text-5xl mb-4"><Icon name="clipboard" size={48} /></div>
           <h1 className="text-3xl font-[var(--font-heading)] gradient-text-green mb-2">
             Check Application Status
           </h1>
@@ -76,7 +84,7 @@ function DriverStatusPage() {
               onChange={e => setEmail(e.target.value)}
             />
             <Button fullWidth onClick={checkStatus} loading={checking} disabled={!email}>
-              🔍 Check Status
+              <Icon name="search" size={16} /> Check Status
             </Button>
           </CardBody>
         </Card>
@@ -89,7 +97,7 @@ function DriverStatusPage() {
           <Card padding="lg" className="animate-scale-in">
             <CardHeader>
               <h2 className="text-lg font-[var(--font-heading)]">
-                {app.status === "none" ? "🔍 No Application Found" : "📋 Application Status"}
+                {app.status === "none" ? <><Icon name="search" size={16} /> No Application Found</> : <><Icon name="clipboard" size={16} /> Application Status</>}
               </h2>
             </CardHeader>
             <CardBody>
@@ -106,7 +114,7 @@ function DriverStatusPage() {
                       <p className="font-bold text-lg">{app.fullName}</p>
                     </div>
                     <Badge variant={statusConfig[app.status]?.variant || "neutral"} size="md" dot>
-                      {statusConfig[app.status]?.icon} {statusConfig[app.status]?.label || app.status}
+                      {statusIconMap[app.status]} {statusConfig[app.status]?.label || app.status}
                     </Badge>
                   </div>
 
@@ -129,7 +137,7 @@ function DriverStatusPage() {
 
                   {app.status === "approved" && (
                     <div className="p-4 rounded-xl bg-[var(--color-success)]/5 border border-[var(--color-success)]/20 text-center">
-                      <p className="text-[var(--color-success)] font-semibold">🎉 Welcome! Your application is approved!</p>
+                      <p className="text-[var(--color-success)] font-semibold"><Icon name="celebration" size={16} /> Welcome! Your application is approved!</p>
                       <p className="text-xs text-[var(--color-neutral-500)] mt-1">Check your email for next steps to start delivering.</p>
                     </div>
                   )}

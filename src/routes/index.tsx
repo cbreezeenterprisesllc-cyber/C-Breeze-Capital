@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { TopbarNav } from "~/components/Navigation";
 import { Button } from "~/components/Button";
 import { Card, CardBody } from "~/components/Card";
+import { Icon } from "~/components/Icon";
 import siteConfig from "~/../site.json";
 
 const getTenants = createServerFn({ method: "GET" }).handler(async () => {
@@ -17,26 +18,27 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-/* ── Floating Leaf Particles ─────────────────────────────── */
+/* ── Floating Leaf Particles (SVG-based, animated) ──────── */
 function LeafParticles({ count = 8 }: { count?: number }) {
-  const leafEmojis = ["🌿", "🍃", "🌱", "☘️"];
+  const leafSrcs = ["/leaf-realistic.png", "/leaf-golden.png"];
+  const sizes = [16, 22, 14, 20, 18, 24, 16, 20];
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
       {Array.from({ length: count }).map((_, i) => (
-        <div
+        <img
           key={i}
+          src={leafSrcs[i % leafSrcs.length]}
+          alt=""
           className="leaf-particle"
           style={{
             left: `${Math.random() * 100}%`,
-            fontSize: `${0.8 + Math.random() * 1.2}rem`,
-            '--duration': `${10 + Math.random() * 15}s`,
-            '--delay': `${Math.random() * 10}s`,
+            width: `${sizes[i % sizes.length]}px`,
+            height: `${sizes[i % sizes.length]}px`,
+            opacity: 0.25 + Math.random() * 0.3,
             animationDelay: `${Math.random() * 10}s`,
             animationDuration: `${10 + Math.random() * 15}s`,
-          } as React.CSSProperties}
-        >
-          {leafEmojis[i % leafEmojis.length]}
-        </div>
+          }}
+        />
       ))}
     </div>
   );
@@ -141,7 +143,12 @@ function Home() {
         {/* ══════════════════════════════════════════════════════
             HERO SECTION — Animated Gradient + Particles
             ══════════════════════════════════════════════════════ */}
-        <section className="relative overflow-hidden gradient-bg-animated min-h-[85vh] flex items-center">
+        <section className="relative overflow-hidden min-h-[85vh] flex items-center" style={{
+  backgroundImage: 'url(/hero-bg-texture.jpg)',
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+  backgroundColor: 'var(--color-primary-900)',
+}}>
           <LeafParticles count={10} />
 
           {/* Decorative glow orbs */}
@@ -149,8 +156,8 @@ function Home() {
           <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-[var(--color-amber-500)]/8 blur-3xl animate-float" style={{ animationDelay: "-2s" }} />
 
           <div className="relative z-10 max-w-6xl mx-auto px-6 py-24 text-center">
-            {/* Leaf icon */}
-            <div className="text-6xl mb-6 animate-float">🌿</div>
+            {/* Leaf icon — photorealistic */}
+            <div className="mb-6 animate-float flex justify-center"><img src="/leaf-realistic.png" alt="" className="w-20 h-20 object-contain drop-shadow-lg" /></div>
 
             {/* Headline with gradient */}
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-[var(--font-heading)] text-white leading-[var(--leading-display)] mb-6 animate-fade-in-up">
@@ -168,8 +175,8 @@ function Home() {
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up delay-300">
               <Link to="/dispensaries">
-                <Button size="lg" variant="neon" glow className="text-lg px-10 py-4">
-                  🚀 Browse Dispensaries
+                <Button size="lg" variant="neon" glow className="text-lg px-10 py-4 inline-flex items-center gap-2">
+                  <Icon name="rocket" size={20} /> Browse Dispensaries
                 </Button>
               </Link>
               <a href="#features">
@@ -207,17 +214,17 @@ function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               {
-                icon: "🚀",
+                icon: "rocket" as const,
                 title: "Lightning Fast Delivery",
                 desc: "Real-time tracking from dispensary to doorstep. Average delivery under 30 minutes.",
               },
               {
-                icon: "🛡️",
+                icon: "shield" as const,
                 title: "Age-Verified & Compliant",
                 desc: "Strict 21+ verification at checkout and delivery. Fully compliant with state regulations.",
               },
               {
-                icon: "🌿",
+                icon: "leaf" as const,
                 title: "Curated Selection",
                 desc: "Browse menus from top local dispensaries with detailed strain info, effects, and reviews.",
               },
@@ -227,7 +234,7 @@ function Home() {
                 className="reveal text-center p-8 rounded-[var(--radius-xl)] bg-[var(--surface-primary)] border border-[var(--color-neutral-200)] shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-[var(--transition-base)]"
                 style={{ animationDelay: `${i * 150}ms` }}
               >
-                <div className="text-5xl mb-4">{feature.icon}</div>
+                <div className="mb-4 flex justify-center"><Icon name={feature.icon} size={44} /></div>
                 <h3 className="font-[var(--font-heading)] text-xl text-[var(--color-primary-800)] mb-3">
                   {feature.title}
                 </h3>
@@ -254,7 +261,7 @@ function Home() {
 
           {tenants.length === 0 ? (
             <div className="text-center py-16 text-[var(--color-neutral-400)] reveal">
-              <div className="text-5xl mb-4">🌱</div>
+              <div className="mb-4 flex justify-center"><img src="/leaf-realistic.png" alt="" className="w-12 h-12 object-contain opacity-40" /></div>
               <p className="text-lg">No dispensaries available yet. Check back soon!</p>
             </div>
           ) : (
@@ -310,8 +317,8 @@ function Home() {
             </p>
             <div className="reveal delay-300">
               <Link to="/dispensaries">
-                <Button size="lg" variant="neon" glow className="text-lg px-12 py-4 shadow-2xl">
-                  🌿 Start Browsing
+                <Button size="lg" variant="neon" glow className="text-lg px-12 py-4 shadow-2xl inline-flex items-center gap-2">
+                  <Icon name="leaf" size={22} /> Start Browsing
                 </Button>
               </Link>
             </div>
@@ -323,7 +330,7 @@ function Home() {
             ══════════════════════════════════════════════════════ */}
         <footer className="bg-[var(--color-primary-900)] text-white/60 py-12">
           <div className="max-w-6xl mx-auto px-6 text-center">
-            <div className="text-3xl mb-4">🌿</div>
+            <div className="mb-4 flex justify-center"><img src="/leaf-realistic.png" alt="" className="w-10 h-10 object-contain" /></div>
             <p className="font-[var(--font-heading)] text-lg text-white/80 mb-2">GreenExpress</p>
             <p className="text-sm max-w-md mx-auto mb-6">
               Premium cannabis delivery from local dispensaries. Must be 21+ to order.

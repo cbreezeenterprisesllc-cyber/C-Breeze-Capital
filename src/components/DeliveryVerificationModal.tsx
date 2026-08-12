@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Modal } from "~/components/Modal";
 import { Button } from "~/components/Button";
 import { Badge } from "~/components/Badge";
+import { Icon } from "~/components/Icon";
 
 interface DeliveryVerificationProps {
   open: boolean;
@@ -39,7 +40,7 @@ export function DeliveryVerificationModal({ open, onClose, orderId, onConfirm }:
   };
 
   return (
-    <Modal open={open} onClose={handleClose} title={`📋 Delivery Verification — ${orderId?.slice(0, 8)}`} size="md">
+    <Modal open={open} onClose={handleClose} title={<span className="flex items-center gap-2"><Icon name="clipboard" size={18} /> Delivery Verification — {orderId?.slice(0, 8)}</span>} size="md">
       <div className="space-y-6 animate-scale-in">
         {/* Step indicator */}
         <div className="flex items-center gap-2">
@@ -57,14 +58,14 @@ export function DeliveryVerificationModal({ open, onClose, orderId, onConfirm }:
         {/* Step 1: ID Verification */}
         {step === 1 && (
           <div className="text-center py-6 animate-fade-in">
-            <div className="text-5xl mb-4 animate-float">🪪</div>
+            <div className="flex justify-center mb-4"><Icon name="id-card" size={56} /></div>
             <h3 className="text-lg font-[var(--font-heading)] font-bold mb-2">Verify Customer ID</h3>
             <p className="text-sm text-[var(--color-neutral-500)] mb-6 max-w-sm mx-auto">
               Scan or upload the customer's ID to verify age (21+)
             </p>
             <div className="flex justify-center gap-4">
-              <Button variant={idPhoto ? "neon" : "primary"} onClick={() => simulateUpload(setIdPhoto)}>
-                {idPhoto ? "✅ ID Verified" : "📷 Upload ID"}
+              <Button variant={idPhoto ? "neon" : "primary"} onClick={() => simulateUpload(setIdPhoto)} className="inline-flex items-center gap-1">
+                {idPhoto ? <><Icon name="check" size={16} /> ID Verified</> : <><Icon name="camera" size={16} /> Upload ID</>}
               </Button>
             </div>
             {idPhoto && (
@@ -78,7 +79,7 @@ export function DeliveryVerificationModal({ open, onClose, orderId, onConfirm }:
         {/* Step 2: Delivery Photo */}
         {step === 2 && (
           <div className="text-center py-6 animate-fade-in">
-            <div className="text-5xl mb-4">📸</div>
+            <div className="flex justify-center mb-4"><Icon name="camera" size={56} /></div>
             <h3 className="text-lg font-[var(--font-heading)] font-bold mb-2">Capture Delivery Photo</h3>
             <p className="text-sm text-[var(--color-neutral-500)] mb-6 max-w-sm mx-auto">
               Take a photo of the delivery with the recipient
@@ -86,18 +87,18 @@ export function DeliveryVerificationModal({ open, onClose, orderId, onConfirm }:
             <div className={`h-40 rounded-[var(--radius-xl)] flex items-center justify-center mb-6 border-2 border-dashed transition-colors ${deliveryPhoto ? "border-[var(--color-success)] bg-[var(--color-success)]/5" : "border-[var(--color-neutral-300)] bg-[var(--color-neutral-100)]"}`}>
               {deliveryPhoto ? (
                 <div className="text-center animate-scale-in">
-                  <div className="text-4xl mb-2">📸</div>
+                  <div className="mb-2 flex justify-center"><Icon name="camera" size={40} /></div>
                   <p className="text-sm text-[var(--color-success)] font-medium">Photo captured successfully</p>
                 </div>
               ) : (
                 <div className="text-center">
-                  <p className="text-[var(--color-neutral-400)] text-sm">📷 Camera preview area</p>
+                  <p className="text-[var(--color-neutral-400)] text-sm flex items-center justify-center gap-1"><Icon name="camera" size={16} /> Camera preview area</p>
                   <p className="text-xs text-[var(--color-neutral-400)] mt-1">Click the button below to capture</p>
                 </div>
               )}
             </div>
-            <Button variant={deliveryPhoto ? "neon" : "primary"} onClick={() => simulateUpload(setDeliveryPhoto)}>
-              {deliveryPhoto ? "✅ Photo Captured" : "📸 Capture Photo"}
+            <Button variant={deliveryPhoto ? "neon" : "primary"} onClick={() => simulateUpload(setDeliveryPhoto)} className="inline-flex items-center gap-1">
+              {deliveryPhoto ? <><Icon name="check" size={16} /> Photo Captured</> : <><Icon name="camera" size={16} /> Capture Photo</>}
             </Button>
           </div>
         )}
@@ -106,7 +107,7 @@ export function DeliveryVerificationModal({ open, onClose, orderId, onConfirm }:
         {step === 3 && (
           <div className="py-4 animate-fade-in">
             <div className="text-center mb-6">
-              <div className="text-5xl mb-4 animate-bounce-in">✅</div>
+              <div className="flex justify-center mb-4"><Icon name="check" size={56} /></div>
               <h3 className="text-lg font-[var(--font-heading)] font-bold mb-2">Confirm Delivery</h3>
               <p className="text-sm text-[var(--color-neutral-500)]">Review and confirm the delivery</p>
             </div>
@@ -114,14 +115,14 @@ export function DeliveryVerificationModal({ open, onClose, orderId, onConfirm }:
             <div className="space-y-3 mb-6">
               <div className="flex justify-between items-center text-sm p-3 rounded-lg bg-[var(--color-primary-100)]">
                 <div className="flex items-center gap-2">
-                  <span>🪪</span>
+                  <Icon name="id-card" size={16} />
                   <span>ID Verification</span>
                 </div>
                 <Badge variant={idPhoto ? "success" : "error"} size="sm" dot>{idPhoto ? "Verified" : "Missing"}</Badge>
               </div>
               <div className="flex justify-between items-center text-sm p-3 rounded-lg bg-[var(--color-amber-500)]/10">
                 <div className="flex items-center gap-2">
-                  <span>📸</span>
+                  <Icon name="camera" size={16} />
                   <span>Delivery Photo</span>
                 </div>
                 <Badge variant={deliveryPhoto ? "success" : "error"} size="sm" dot>{deliveryPhoto ? "Captured" : "Missing"}</Badge>
@@ -130,7 +131,7 @@ export function DeliveryVerificationModal({ open, onClose, orderId, onConfirm }:
                 <textarea
                   className="w-full p-3 rounded-xl border border-[var(--color-neutral-200)] text-sm resize-none focus:border-[var(--color-primary-400)] focus:ring-1 focus:ring-[var(--color-primary-400)] transition-colors bg-[var(--surface-primary)]"
                   rows={2}
-                  placeholder="📝 Delivery notes (optional)"
+                  placeholder="Delivery notes (optional)"
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                 />
@@ -139,7 +140,7 @@ export function DeliveryVerificationModal({ open, onClose, orderId, onConfirm }:
 
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setStep(2)}>← Back</Button>
-              <Button variant="neon" className="flex-1" onClick={handleConfirm}>✅ Confirm Delivery</Button>
+              <Button variant="neon" className="flex-1 inline-flex items-center justify-center gap-1" onClick={handleConfirm}><Icon name="check" size={16} /> Confirm Delivery</Button>
             </div>
           </div>
         )}

@@ -1,12 +1,13 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { SidebarNav } from "~/components/Navigation";
+import { Icon } from "~/components/Icon";
 
 const merchantNavItems = [
-  { label: "Dashboard", href: "/dashboard/merchant", icon: <span>📊</span>, active: true },
-  { label: "Inventory", href: "/dashboard/merchant/inventory", icon: <span>📦</span> },
-  { label: "Orders", href: "/dashboard/merchant/orders", icon: <span>📋</span> },
-  { label: "Tracking", href: "/dashboard/merchant/tracking", icon: <span>📍</span> },
-  { label: "Analytics", href: "/dashboard/merchant/analytics", icon: <span>📈</span> },
+  { label: "Dashboard", href: "/dashboard/merchant", icon: <Icon name="chart" size={18} />, active: true },
+  { label: "Inventory", href: "/dashboard/merchant/inventory", icon: <Icon name="package" size={18} /> },
+  { label: "Orders", href: "/dashboard/merchant/orders", icon: <Icon name="clipboard" size={18} /> },
+  { label: "Tracking", href: "/dashboard/merchant/tracking", icon: <Icon name="car" size={18} /> },
+  { label: "Analytics", href: "/dashboard/merchant/analytics", icon: <Icon name="chart" size={18} /> },
 ];
 
 export const Route = createFileRoute("/dashboard/merchant")({

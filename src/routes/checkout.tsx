@@ -5,6 +5,7 @@ import { Button } from "~/components/Button";
 import { Card, CardHeader, CardBody, CardFooter } from "~/components/Card";
 import { Input } from "~/components/Input";
 import { Modal } from "~/components/Modal";
+import { Icon } from "~/components/Icon";
 import { useCart } from "~/context/CartContext";
 import { apiFetch } from "~/lib/api-config";
 
@@ -112,7 +113,7 @@ function CheckoutPage() {
       <div className="min-h-dvh bg-[var(--surface-secondary)] flex items-center justify-center">
         <Card padding="lg" className="max-w-md w-full text-center animate-scale-in">
           <CardBody>
-            <div className="text-5xl mb-4 animate-bounce-in">✅</div>
+            <div className="mb-4 flex justify-center"><Icon name="check" size={56} /></div>
             <h1 className="text-[var(--text-h2)] font-[var(--font-heading)] gradient-text-green mb-2">
               Order Placed!
             </h1>
@@ -120,7 +121,7 @@ function CheckoutPage() {
               Your order is being prepared. Track it in real-time.
             </p>
             <Link to="/orders/$id/track" params={{ id: orderResult.orderId }}>
-              <Button size="lg" variant="neon">🚀 Track Delivery</Button>
+              <Button size="lg" variant="neon" className="inline-flex items-center gap-2"><Icon name="rocket" size={18} /> Track Delivery</Button>
             </Link>
           </CardBody>
         </Card>
@@ -133,11 +134,11 @@ function CheckoutPage() {
       <div className="min-h-dvh bg-[var(--surface-secondary)] flex items-center justify-center">
         <Card padding="lg" className="max-w-md w-full text-center animate-fade-in">
           <CardBody>
-            <div className="text-6xl mb-4">🛒</div>
+            <div className="mb-4 flex justify-center"><Icon name="cart" size={56} /></div>
             <h2 className="text-[var(--text-h3)] font-[var(--font-heading)] text-[var(--color-neutral-600)] mb-2">
               Your cart is empty
             </h2>
-            <Link to="/dispensaries"><Button variant="neon">🌿 Browse Dispensaries</Button></Link>
+            <Link to="/dispensaries"><Button variant="neon" className="inline-flex items-center gap-2"><Icon name="leaf" size={18} /> Browse Dispensaries</Button></Link>
           </CardBody>
         </Card>
       </div>
@@ -156,7 +157,7 @@ function CheckoutPage() {
       />
 
       {/* Age Verification Modal */}
-      <Modal open={showAgeModal} onClose={() => {}} title="🔞 Age Verification Required" size="sm">
+      <Modal open={showAgeModal} onClose={() => {}} title={<span className="flex items-center gap-2"><Icon name="age" size={20} /> Age Verification Required</span>} size="sm">
         <div className="space-y-4 animate-scale-in">
           <p className="text-sm text-[var(--color-neutral-500)]">
             You must be <strong>21 or older</strong> to order cannabis products. Please verify your age.
@@ -168,8 +169,8 @@ function CheckoutPage() {
             onChange={(e) => setBirthDate(e.target.value)}
             error={ageError}
           />
-          <Button fullWidth variant="neon" onClick={handleAgeVerify}>
-            ✅ Verify Age
+          <Button fullWidth variant="neon" onClick={handleAgeVerify} className="inline-flex items-center justify-center gap-2">
+            <Icon name="check" size={18} /> Verify Age
           </Button>
           <p className="text-xs text-[var(--color-neutral-400)] text-center">
             By proceeding, you confirm you are 21+ and agree to our terms.
@@ -187,8 +188,8 @@ function CheckoutPage() {
           <div className="lg:col-span-2 space-y-6">
             <Card padding="lg">
               <CardHeader>
-                <h2 className="text-[var(--text-h4)] font-[var(--font-heading)] text-[var(--color-neutral-800)]">
-                  📍 Delivery Details
+                <h2 className="text-[var(--text-h4)] font-[var(--font-heading)] text-[var(--color-neutral-800)] flex items-center gap-2">
+                  <Icon name="car" size={18} /> Delivery Details
                 </h2>
               </CardHeader>
               <CardBody className="space-y-4">
@@ -211,8 +212,8 @@ function CheckoutPage() {
             {/* Order Items */}
             <Card padding="lg">
               <CardHeader>
-                <h2 className="text-[var(--text-h4)] font-[var(--font-heading)] text-[var(--color-neutral-800)]">
-                  🛍️ Items
+                <h2 className="text-[var(--text-h4)] font-[var(--font-heading)] text-[var(--color-neutral-800)] flex items-center gap-2">
+                  <Icon name="package" size={18} /> Items
                 </h2>
               </CardHeader>
               <CardBody>
@@ -235,8 +236,8 @@ function CheckoutPage() {
           <div>
             <Card padding="lg" glow>
               <CardHeader>
-                <h2 className="text-[var(--text-h4)] font-[var(--font-heading)] text-[var(--color-neutral-800)]">
-                  📋 Summary
+                <h2 className="text-[var(--text-h4)] font-[var(--font-heading)] text-[var(--color-neutral-800)] flex items-center gap-2">
+                  <Icon name="clipboard" size={18} /> Summary
                 </h2>
               </CardHeader>
               <CardBody>
@@ -247,7 +248,7 @@ function CheckoutPage() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-[var(--color-neutral-500)]">Delivery</span>
-                    <span className="font-medium">{deliveryFee === 0 ? <span className="text-[var(--color-success)] font-semibold">Free 🎉</span> : `$${deliveryFee.toFixed(2)}`}</span>
+                    <span className="font-medium">{deliveryFee === 0 ? <span className="text-[var(--color-success)] font-semibold">Free</span> : `${deliveryFee.toFixed(2)}`}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-[var(--color-neutral-500)]">Tax</span>
@@ -258,8 +259,8 @@ function CheckoutPage() {
                     <span className="font-bold text-xl gradient-text-green">${total.toFixed(2)}</span>
                   </div>
                   {subtotal < 50 && (
-                    <p className="text-xs text-[var(--color-amber-600)] bg-[var(--color-amber-500)]/10 px-3 py-2 rounded-lg mt-2">
-                      💡 Add ${(50 - subtotal).toFixed(2)} more for <strong>free delivery</strong>!
+                    <p className="text-xs text-[var(--color-amber-600)] bg-[var(--color-amber-500)]/10 px-3 py-2 rounded-lg mt-2 flex items-center gap-1">
+                      <Icon name="lightbulb" size={14} /> Add ${(50 - subtotal).toFixed(2)} more for <strong>free delivery</strong>!
                     </p>
                   )}
                 </div>
@@ -272,8 +273,9 @@ function CheckoutPage() {
                   onClick={handlePlaceOrder}
                   loading={placing}
                   disabled={!ageVerified || !address.trim()}
+                  className="inline-flex items-center justify-center gap-2"
                 >
-                  🚀 Place Order — ${total.toFixed(2)}
+                  <Icon name="rocket" size={18} /> Place Order — ${total.toFixed(2)}
                 </Button>
                 {orderResult && !orderResult.success && (
                   <p className="text-sm text-[var(--color-error)] mt-2 animate-fade-in">{orderResult.error}</p>
