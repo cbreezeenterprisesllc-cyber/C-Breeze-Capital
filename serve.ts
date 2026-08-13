@@ -153,13 +153,34 @@ Bun.serve({
     // 2. Serve static files from dist/client
     if (url.pathname !== "/") {
       const file = Bun.file(CLIENT_DIR + url.pathname);
-      if (await file.exists()) return new Response(file);
+      if (await file.exists()) {
+        // Never let the service worker script or manifest be held in an HTTP
+        // cache — browsers must see SW updates immediately so old cached
+        // pages are purged on the next load.
+        if (url.pathname === "/sw.js" || url.pathname === "/manifest.json") {
+          return new Response(file, {
+            headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+          });
+        }
+        return new Response(file);
+      }
     }
 
     // 3. Fallthrough to TanStack SSR handler
-    return (
+    const ssrResponse = await (
       handler as { fetch: (r: Request) => Response | Promise<Response> }
     ).fetch(req);
+    // HTML shell is dynamic (SSR) — never cache it, so users always get the
+    // current site and the service worker picks up updates on next load.
+    const headers = new Headers(ssrResponse.headers);
+    if (!headers.has("Cache-Control")) {
+      headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    }
+    return new Response(ssrResponse.body, {
+      status: ssrResponse.status,
+      statusText: ssrResponse.statusText,
+      headers,
+    });
   },
 });
 

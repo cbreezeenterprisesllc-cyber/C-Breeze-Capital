@@ -1,12 +1,15 @@
-// GreenExpress Service Worker — v1.0
-// Cache-first for static assets, network-first for API calls
+// GreenExpress Service Worker — v2.0
+// Cache-first for static assets, network-first for API + navigation.
+// v2: version bump to force browsers to purge caches from the pre-MVP
+// placeholder era (old greenexpress-v1 caches are deleted on activate).
+// The HTML shell ("/") is intentionally NOT pre-cached — it is dynamic
+// (SSR) and must always come from the network.
 
-const CACHE_NAME = "greenexpress-v1";
-const STATIC_CACHE = "greenexpress-static-v1";
+const CACHE_NAME = "greenexpress-v2";
+const STATIC_CACHE = "greenexpress-static-v2";
 
-// Assets to pre-cache on install
+// Assets to pre-cache on install (static, content-hashed, safe to cache)
 const PRECACHE_URLS = [
-  "/",
   "/manifest.json",
   "/icons/icon-192.svg",
   "/icons/icon-512.svg",
