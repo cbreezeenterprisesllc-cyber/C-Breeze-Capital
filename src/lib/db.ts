@@ -187,6 +187,41 @@ function initSchema(db: Database) {
       FOREIGN KEY (tenant_id) REFERENCES tenants(id)
     );
 
+    CREATE TABLE IF NOT EXISTS conversations (
+      id TEXT PRIMARY KEY,
+      order_id TEXT,
+      store_id TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      last_message_at TEXT,
+      FOREIGN KEY (order_id) REFERENCES orders(id),
+      FOREIGN KEY (store_id) REFERENCES tenants(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS conversation_participants (
+      conversation_id TEXT NOT NULL,
+      participant_type TEXT NOT NULL
+        CHECK(participant_type IN ('customer','merchant','driver','support')),
+      participant_id TEXT NOT NULL,
+      display_name TEXT DEFAULT '',
+      joined_at TEXT DEFAULT (datetime('now')),
+      last_read_at TEXT,
+      PRIMARY KEY (conversation_id, participant_type, participant_id),
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      sender_type TEXT NOT NULL
+        CHECK(sender_type IN ('customer','merchant','driver','support')),
+      sender_id TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      read_at TEXT,
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_products_tenant ON products(tenant_id);
     CREATE INDEX IF NOT EXISTS idx_orders_tenant ON orders(tenant_id);
     CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
@@ -195,6 +230,10 @@ function initSchema(db: Database) {
     CREATE INDEX IF NOT EXISTS idx_categories_tenant ON categories(tenant_id);
     CREATE INDEX IF NOT EXISTS idx_drivers_available ON drivers(is_available);
     CREATE INDEX IF NOT EXISTS idx_driver_applications_status ON driver_applications(status);
+    CREATE INDEX IF NOT EXISTS idx_conversations_order ON conversations(order_id);
+    CREATE INDEX IF NOT EXISTS idx_conversations_last_message ON conversations(last_message_at);
+    CREATE INDEX IF NOT EXISTS idx_participants_lookup ON conversation_participants(participant_type, participant_id);
+    CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
   `);
   // Add new driver compliance fields to existing installations without destructive migrations.
   for (const statement of [

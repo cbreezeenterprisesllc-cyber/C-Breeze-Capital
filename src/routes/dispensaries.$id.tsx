@@ -5,6 +5,7 @@ import { TopbarNav } from "~/components/Navigation";
 import { Button } from "~/components/Button";
 import { Card, CardBody } from "~/components/Card";
 import { Badge } from "~/components/Badge";
+import { ChatWidget } from "~/components/ChatWidget";
 import { Input } from "~/components/Input";
 import { useCart } from "~/context/CartContext";
 
@@ -17,6 +18,7 @@ function StorefrontPage() {
   const [search, setSearch] = useState("");
   const [cat, setCat] = useState("");
   const [strain, setStrain] = useState("");
+  const [askOpen, setAskOpen] = useState(false);
   const { addItem, itemCount } = useCart();
 
   useState(() => {
@@ -51,7 +53,20 @@ function StorefrontPage() {
         <div className="flex items-center gap-4 mb-8">
           <div className="w-16 h-16 rounded-xl flex items-center justify-center text-white font-bold text-2xl shrink-0" style={{backgroundColor:t.primary_color||"#2D6A4F"}}>{(t.store_name||"S").charAt(0)}</div>
           <div><h1 className="text-4xl font-bold text-gray-800">{t.store_name}</h1><Badge variant="success" size="sm" dot>Open</Badge></div>
+          <div className="flex items-center gap-2 ml-auto">
+            <Button size="sm" variant="outline" onClick={() => setAskOpen(o => !o)}>
+              {askOpen ? "Close" : "Ask a dispensary"}
+            </Button>
+          </div>
         </div>
+        {askOpen && (
+          <ChatWidget
+            storeId={t.id}
+            title={`Ask ${t.store_name}`}
+            subtitle="Store team · Support"
+            className="mb-8"
+          />
+        )}
         <div className="flex flex-wrap gap-4 mb-8">
           <Input placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} />
           <select className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm" value={cat} onChange={e=>setCat(e.target.value)}>
