@@ -4,6 +4,7 @@ import { Icon } from "~/components/Icon";
 
 const merchantNavItems = [
   { label: "Dashboard", href: "/dashboard/merchant", icon: <Icon name="chart" size={18} />, active: true },
+  { label: "Inbox", href: "/dashboard/merchant/inbox", icon: <Icon name="chat" size={18} /> },
   { label: "Inventory", href: "/dashboard/merchant/inventory", icon: <Icon name="package" size={18} /> },
   { label: "Orders", href: "/dashboard/merchant/orders", icon: <Icon name="clipboard" size={18} /> },
   { label: "Tracking", href: "/dashboard/merchant/tracking", icon: <Icon name="car" size={18} /> },

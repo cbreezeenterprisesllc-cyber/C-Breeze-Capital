@@ -69,6 +69,13 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
     handleAdminListDrivers, handleAdminSuspendDriver, handleDriverAvailability,
   } = await import("./src/lib/api-handlers.ts");
 
+  const {
+    handleCreateConversation, handleListConversations, handleGetMessages,
+    handleSendMessage, handleMarkRead, handleConversationStream,
+  } = await import("./src/lib/chat-handlers.ts");
+
+  const { requireAuth } = await import("./src/lib/auth.ts");
+
   let body: Record<string, unknown> = {};
   if ((method === "POST" || method === "PUT") && req.headers.get("content-type")?.includes("json")) {
     try { body = await req.json(); } catch { /* ignore */ }
@@ -135,7 +142,44 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
   const driverAvailMatch = path.match(/^\/api\/drivers\/([^/]+)\/availability$/);
   if (method === "PUT" && driverAvailMatch) return handleDriverAvailability(driverAvailMatch[1], body);
 
+  // ── Conversations (unified chat) ──────────────────────────────────────
+  const convAuth = requireAuth(req);
+  const convIdMatch = path.match(/^\/api\/conversations\/([^/]+)$/);
+  const convMessagesMatch = path.match(/^\/api\/conversations\/([^/]+)\/messages$/);
+  const convReadMatch = path.match(/^\/api\/conversations\/([^/]+)\/read$/);
+
+  // SSE stream (token in query — EventSource can't set headers) — before :id match
+  if (method === "GET" && path === "/api/conversations/stream") return handleConversationStream(url);
+
+  if (method === "POST" && path === "/api/conversations") {
+    if (!convAuth) return json401();
+    return handleCreateConversation(body, convAuth);
+  }
+  if (method === "GET" && path === "/api/conversations") {
+    if (!convAuth) return json401();
+    return handleListConversations(convAuth);
+  }
+  if (method === "GET" && convMessagesMatch) {
+    if (!convAuth) return json401();
+    return handleGetMessages(convMessagesMatch[1], convAuth);
+  }
+  if (method === "POST" && convMessagesMatch) {
+    if (!convAuth) return json401();
+    return handleSendMessage(convMessagesMatch[1], body, convAuth);
+  }
+  if (method === "POST" && convReadMatch) {
+    if (!convAuth) return json401();
+    return handleMarkRead(convReadMatch[1], convAuth);
+  }
+
   return null; // not an API route
+}
+
+function json401(): Response {
+  return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), {
+    status: 401,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 Bun.serve({

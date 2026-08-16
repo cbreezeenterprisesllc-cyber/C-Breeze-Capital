@@ -38,6 +38,7 @@ type IconName =
   | "medal"
   | "truck"
   | "settings"
+  | "chat"
   | "arrow-right"
   | "arrow-down";
 
@@ -409,6 +410,16 @@ function IconSVG({ name, size = 24 }: { name: IconName; size?: number }) {
         </svg>
       );
 
+    // ── Chat (messaging bubble) ──────────────────────────────
+    case "chat":
+      return (
+        <svg width={s} height={s} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 12C6 9.8 7.8 8 10 8H38C40.2 8 42 9.8 42 12V30C42 32.2 40.2 34 38 34H22L12 42V34H10C7.8 34 6 32.2 6 30V12Z" stroke="var(--color-primary-600)" strokeWidth="2.5" strokeLinejoin="round" fill="var(--color-primary-50)" />
+          <circle cx="16" cy="21" r="2" fill="var(--color-primary-600)" />
+          <circle cx="24" cy="21" r="2" fill="var(--color-primary-600)" />
+          <circle cx="32" cy="21" r="2" fill="var(--color-primary-600)" />
+        </svg>
+      );
     default:
       return null;
   }
