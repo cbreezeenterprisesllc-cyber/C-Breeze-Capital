@@ -661,3 +661,44 @@
   background: var(--gradient-amber);
   color: var(--color-neutral-800);
 }
+/* ── Legal Policy Pages ─────────────────────────────────── */
+.legal-body h2 {
+  font-family: var(--font-heading);
+  font-size: var(--text-h3);
+  font-weight: 700;
+  color: var(--color-primary-800);
+  margin: 2rem 0 0.75rem;
+}
+.legal-body h3 {
+  font-family: var(--font-heading);
+  font-size: var(--text-h4);
+  font-weight: 600;
+  color: var(--color-primary-800);
+  margin: 1.5rem 0 0.5rem;
+}
+.legal-body p {
+  margin: 0.75rem 0;
+}
+.legal-body ul,
+.legal-body ol {
+  margin: 0.75rem 0 0.75rem 1.5rem;
+  padding: 0;
+}
+.legal-body ul { list-style: disc; }
+.legal-body ol { list-style: decimal; }
+.legal-body li {
+  margin: 0.4rem 0;
+}
+.legal-body a {
+  color: var(--color-primary-600);
+  text-decoration: underline;
+}
+.legal-body strong {
+  color: var(--color-neutral-800);
+  font-weight: 600;
+}
+.legal-body .legal-note {
+  font-size: var(--text-body-sm);
+  color: var(--color-neutral-500);
+  font-style: italic;
+}

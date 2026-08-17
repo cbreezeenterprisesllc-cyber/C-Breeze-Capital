@@ -7,6 +7,7 @@ import { Card, CardHeader, CardBody } from "~/components/Card";
 import { Input } from "~/components/Input";
 import { Badge } from "~/components/Badge";
 import { Icon } from "~/components/Icon";
+import { SiteFooter } from "~/components/SiteFooter";
 
 export const Route = createFileRoute("/drivers/status")({
   component: DriverStatusPage,
@@ -153,6 +154,7 @@ function DriverStatusPage() {
           </Card>
         )}
       </main>
+      <SiteFooter />
     </div>
   );
 }

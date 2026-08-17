@@ -8,6 +8,7 @@ import { Input } from "~/components/Input";
 import { Select } from "~/components/Select";
 import { Badge } from "~/components/Badge";
 import { Icon, type IconName } from "~/components/Icon";
+import { SiteFooter } from "~/components/SiteFooter";
 
 export const Route = createFileRoute("/drivers/apply")({
   component: DriverApplyPage,
@@ -320,6 +321,7 @@ function DriverApplyPage() {
           ))}
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

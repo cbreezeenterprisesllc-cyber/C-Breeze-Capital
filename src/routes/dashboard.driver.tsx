@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { TopbarNav } from "~/components/Navigation";
 import { ChatInbox } from "~/components/ChatInbox";
+import { SiteFooter } from "~/components/SiteFooter";
 
 export const Route = createFileRoute("/dashboard/driver")({
   component: DriverPanel,
@@ -28,6 +29,7 @@ function DriverPanel() {
           <Link to="/drivers/apply" className="text-[var(--color-primary-600)] underline">Apply here</Link>.
         </p>
       </main>
+      <SiteFooter />
     </div>
   );
 }

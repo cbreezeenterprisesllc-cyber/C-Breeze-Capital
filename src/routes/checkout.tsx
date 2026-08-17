@@ -8,6 +8,7 @@ import { Modal } from "~/components/Modal";
 import { Icon } from "~/components/Icon";
 import { useCart } from "~/context/CartContext";
 import { apiFetch } from "~/lib/api-config";
+import { SiteFooter } from "~/components/SiteFooter";
 
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
@@ -285,6 +286,7 @@ function CheckoutPage() {
           </div>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

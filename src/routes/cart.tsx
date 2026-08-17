@@ -4,6 +4,7 @@ import { Button } from "~/components/Button";
 import { Card, CardHeader, CardBody, CardFooter } from "~/components/Card";
 import { Icon } from "~/components/Icon";
 import { useCart } from "~/context/CartContext";
+import { SiteFooter } from "~/components/SiteFooter";
 
 export const Route = createFileRoute("/cart")({
   component: CartPage,
@@ -147,6 +148,7 @@ function CartPage() {
           </div>
         )}
       </main>
+      <SiteFooter />
     </div>
   );
 }

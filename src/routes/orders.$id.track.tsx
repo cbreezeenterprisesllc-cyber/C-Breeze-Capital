@@ -6,6 +6,7 @@ import { Badge } from "~/components/Badge";
 import { Card, CardHeader, CardBody } from "~/components/Card";
 import { Icon } from "~/components/Icon";
 import { ChatWidget } from "~/components/ChatWidget";
+import { SiteFooter } from "~/components/SiteFooter";
 
 export const Route = createFileRoute("/orders/$id/track")({
   component: TrackOrder,
@@ -246,6 +247,7 @@ function TrackOrder() {
         subtitle="Dispensary · Driver · Support"
         compact
       />
+      <SiteFooter />
     </div>
   );
 }
