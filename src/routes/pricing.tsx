@@ -4,6 +4,7 @@ import { Button } from "~/components/Button";
 import { Card, CardHeader, CardBody } from "~/components/Card";
 import { Badge } from "~/components/Badge";
 import { Icon } from "~/components/Icon";
+import { SiteFooter } from "~/components/SiteFooter";
 
 export const Route = createFileRoute("/pricing")({
   component: PricingPage,
@@ -143,6 +144,7 @@ function PricingPage() {
           </Link>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

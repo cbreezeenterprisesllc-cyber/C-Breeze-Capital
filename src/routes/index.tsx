@@ -5,6 +5,7 @@ import { TopbarNav } from "~/components/Navigation";
 import { Button } from "~/components/Button";
 import { Card, CardBody } from "~/components/Card";
 import { Icon } from "~/components/Icon";
+import { SiteFooter } from "~/components/SiteFooter";
 import siteConfig from "~/../site.json";
 
 const getTenants = createServerFn({ method: "GET" }).handler(async () => {
@@ -328,21 +329,7 @@ function Home() {
         {/* ══════════════════════════════════════════════════════
             FOOTER
             ══════════════════════════════════════════════════════ */}
-        <footer className="bg-[var(--color-primary-900)] text-white/60 py-12">
-          <div className="max-w-6xl mx-auto px-6 text-center">
-            <div className="mb-4 flex justify-center"><img src="/leaf-realistic.png" alt="" className="w-10 h-10 object-contain" /></div>
-            <p className="font-[var(--font-heading)] text-lg text-white/80 mb-2">GreenExpress</p>
-            <p className="text-sm max-w-md mx-auto mb-6">
-              Premium cannabis delivery from local dispensaries. Must be 21+ to order.
-            </p>
-            <div className="flex justify-center gap-6 text-xs">
-              <a href="#" className="hover:text-white transition-colors">Terms</a>
-              <a href="#" className="hover:text-white transition-colors">Privacy</a>
-              <a href="#" className="hover:text-white transition-colors">Contact</a>
-            </div>
-            <p className="text-xs mt-6">&copy; 2026 GreenExpress — a subsidiary of C Breeze Enterprises LLC. All rights reserved.</p>
-          </div>
-        </footer>
+        <SiteFooter />
       </main>
     </div>
   );

@@ -5,6 +5,7 @@ import { Button } from "~/components/Button";
 import { Card, CardBody } from "~/components/Card";
 import { Badge } from "~/components/Badge";
 import { Icon } from "~/components/Icon";
+import { SiteFooter } from "~/components/SiteFooter";
 
 const getTenants = createServerFn({ method: "GET" }).handler(async () => {
   const { getDb } = await import("~/lib/db");
@@ -76,6 +77,7 @@ function Dispensaries() {
           </div>
         )}
       </main>
+      <SiteFooter />
     </div>
   );
 }

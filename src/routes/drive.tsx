@@ -4,6 +4,7 @@ import { Button } from "~/components/Button";
 import { Card, CardBody } from "~/components/Card";
 import { Badge } from "~/components/Badge";
 import { Icon, type IconName } from "~/components/Icon";
+import { SiteFooter } from "~/components/SiteFooter";
 
 export const Route = createFileRoute("/drive")({
   component: DrivePage,
@@ -94,6 +95,7 @@ function DrivePage() {
           Must be 21+ with valid driver's license, insurance, and 2011+ vehicle.
         </p>
       </section>
+      <SiteFooter />
     </div>
   );
 }
