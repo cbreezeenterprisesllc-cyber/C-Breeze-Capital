@@ -1,5 +1,6 @@
 import { getDb } from "~/lib/db";
 import { hashPassword, verifyPassword, generateToken, generateId } from "~/lib/auth";
+import { sanitizeHours } from "~/lib/store-hours";
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -141,6 +142,27 @@ export function handleGetTenant(slug: string): Response {
     return error("Tenant not found", 404);
   }
   return json({ success: true, data: tenant });
+}
+// PUT /api/tenants/:id/hours — update store hours. Merchant must own the tenant
+// (or be an admin). Body: { hours: { monday: { open, close, closed, allDay }, ... } }
+export function handleUpdateTenantHours(
+  id: string,
+  body: Record<string, unknown>,
+  auth: { role: string; tenantId?: string } | null,
+): Response {
+  if (!auth) return error("Unauthorized", 401);
+  const db = getDb();
+  const tenant = db
+    .prepare("SELECT * FROM tenants WHERE slug = ? OR id = ?")
+    .get(id, id) as Record<string, unknown> | undefined;
+  if (!tenant) return error("Tenant not found", 404);
+  if (auth.role === "merchant" && auth.tenantId && auth.tenantId !== tenant.id) {
+    return error("Forbidden", 403);
+  }
+  const hours = sanitizeHours(body.hours);
+  db.prepare("UPDATE tenants SET hours = ? WHERE id = ?").run(JSON.stringify(hours), tenant.id);
+  const updated = db.prepare("SELECT * FROM tenants WHERE id = ?").get(tenant.id);
+  return json({ success: true, data: updated });
 }
 
 // GET /api/products?tenantId=xxx

@@ -58,7 +58,7 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
 
   const {
     handleHealth, handleRegister, handleLogin,
-    handleListTenants, handleCreateTenant, handleGetTenant,
+    handleListTenants, handleCreateTenant, handleGetTenant, handleUpdateTenantHours,
     handleListProducts, handleCreateProduct, handleGetProduct, handleUpdateProduct,
     handleListOrders, handleCreateOrder, handleGetOrder, handleUpdateOrderStatus,
     handleListCategories, handleCreateCategory, handleOrderStream,
@@ -73,7 +73,6 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
     handleCreateConversation, handleListConversations, handleGetMessages,
     handleSendMessage, handleMarkRead, handleConversationStream,
   } = await import("./src/lib/chat-handlers.ts");
-
   const { requireAuth } = await import("./src/lib/auth.ts");
 
   let body: Record<string, unknown> = {};
@@ -94,6 +93,10 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
   if (method === "POST" && path === "/api/tenants") return handleCreateTenant(body);
   const tenantMatch = path.match(/^\/api\/tenants\/(.+)$/);
   if (method === "GET" && tenantMatch) return handleGetTenant(tenantMatch[1]);
+  const tenantHoursMatch = path.match(/^\/api\/tenants\/([^/]+)\/hours$/);
+  if (method === "PUT" && tenantHoursMatch) {
+    return handleUpdateTenantHours(tenantHoursMatch[1], body, requireAuth(req, ["merchant", "admin"]));
+  }
 
   // Orders stream (before order/:id to avoid conflict)
   if (method === "GET" && path === "/api/orders/stream") return handleOrderStream(url);

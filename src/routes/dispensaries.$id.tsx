@@ -9,6 +9,8 @@ import { ChatWidget } from "~/components/ChatWidget";
 import { Input } from "~/components/Input";
 import { SiteFooter } from "~/components/SiteFooter";
 import { useCart } from "~/context/CartContext";
+import { parseHours, isOpenAt, nextOpenInfo, formatSchedule, hasConfiguredHours } from "~/lib/store-hours";
+import { Icon } from "~/components/Icon";
 
 export const Route = createFileRoute("/dispensaries/$id")({ component: StorefrontPage });
 
@@ -47,13 +49,21 @@ function StorefrontPage() {
   if (!data) return <div className="min-h-dvh bg-emerald-50 flex items-center justify-center"><p className="text-gray-500">Not found.</p></div>;
 
   const t = data.tenant;
+  const hours = parseHours(t.hours as string | undefined);
+  const hasHours = hasConfiguredHours(hours);
+  const openNow = hasHours && isOpenAt(hours);
+  const nextOpen = hasHours && !openNow ? nextOpenInfo(hours) : null;
+  const schedule = hasHours ? formatSchedule(hours) : [];
   return (
     <div className="min-h-dvh bg-emerald-50">
       <TopbarNav branding={{title:t.store_name}} items={[{label:"Home",href:"/"},{label:"Dispensaries",href:"/dispensaries"},{label:`Cart(${itemCount})`,href:"/cart"}]}/>
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex items-center gap-4 mb-8">
           <div className="w-16 h-16 rounded-xl flex items-center justify-center text-white font-bold text-2xl shrink-0" style={{backgroundColor:t.primary_color||"#2D6A4F"}}>{(t.store_name||"S").charAt(0)}</div>
-          <div><h1 className="text-4xl font-bold text-gray-800">{t.store_name}</h1><Badge variant="success" size="sm" dot>Open</Badge></div>
+          <div><h1 className="text-4xl font-bold text-gray-800">{t.store_name}</h1>{hasHours ? (openNow
+        ? <Badge variant="success" size="sm" dot>Open</Badge>
+        : <Badge variant="error" size="sm" dot>{nextOpen ? nextOpen.label : "Closed"}</Badge>)
+      : <Badge variant="neutral" size="sm">Hours N/A</Badge>}</div>
           <div className="flex items-center gap-2 ml-auto">
             <Button size="sm" variant="outline" onClick={() => setAskOpen(o => !o)}>
               {askOpen ? "Close" : "Ask a dispensary"}
@@ -67,6 +77,23 @@ function StorefrontPage() {
             subtitle="Store team · Support"
             className="mb-8"
           />
+        )}
+        {!hasHours ? null : (
+          <Card className="mb-8"><CardBody>
+            <div className="flex items-center gap-2 mb-3">
+              <Icon name="clock" size={18} />
+              <h2 className="text-lg font-semibold text-gray-800">Store hours</h2>
+              {openNow ? <Badge variant="success" size="sm">Open now</Badge> : <Badge variant="error" size="sm">Closed</Badge>}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 text-sm">
+              {schedule.map((d) => (
+                <div key={d.dayKey} className="flex justify-between gap-4 py-0.5">
+                  <span className="text-gray-500 capitalize">{d.dayKey}</span>
+                  <span className="font-medium text-gray-700">{d.label}</span>
+                </div>
+              ))}
+            </div>
+          </CardBody></Card>
         )}
         <div className="flex flex-wrap gap-4 mb-8">
           <Input placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} />
