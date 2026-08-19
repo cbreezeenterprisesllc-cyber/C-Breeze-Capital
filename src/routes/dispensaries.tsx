@@ -6,11 +6,12 @@ import { Card, CardBody } from "~/components/Card";
 import { Badge } from "~/components/Badge";
 import { Icon } from "~/components/Icon";
 import { SiteFooter } from "~/components/SiteFooter";
+import { parseHours, isOpenAt, hasConfiguredHours } from "~/lib/store-hours";
 
 const getTenants = createServerFn({ method: "GET" }).handler(async () => {
   const { getDb } = await import("~/lib/db");
   const db = getDb();
-  return db.prepare("SELECT id, name, slug, store_name, logo_url, primary_color FROM tenants WHERE is_active = 1 ORDER BY name").all();
+  return db.prepare("SELECT id, name, slug, store_name, logo_url, primary_color, hours FROM tenants WHERE is_active = 1 ORDER BY name").all();
 });
 
 export const Route = createFileRoute("/dispensaries")({
@@ -21,7 +22,7 @@ export const Route = createFileRoute("/dispensaries")({
 function Dispensaries() {
   const tenants = Route.useLoaderData() as Array<{
     id: string; name: string; slug: string; store_name: string;
-    logo_url: string; primary_color: string;
+    logo_url: string; primary_color: string; hours: string;
   }>;
 
   return (
@@ -66,7 +67,10 @@ function Dispensaries() {
                         <h3 className="font-[var(--font-heading)] text-[var(--text-h3)] text-[var(--color-neutral-800)]">
                           {t.store_name}
                         </h3>
-                        <Badge variant="primary" size="sm" dot>Open</Badge>
+                        {hasConfiguredHours(parseHours(t.hours)) ? (isOpenAt(parseHours(t.hours))
+                          ? <Badge variant="primary" size="sm" dot>Open</Badge>
+                          : <Badge variant="neutral" size="sm" dot>Closed</Badge>)
+                        : <Badge variant="neutral" size="sm">Hours N/A</Badge>}
                       </div>
                     </div>
                     <Button variant="neon" size="sm" fullWidth>View Menu →</Button>

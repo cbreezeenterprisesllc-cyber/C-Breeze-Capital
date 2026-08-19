@@ -35,6 +35,7 @@ function initSchema(db: Database) {
       secondary_color TEXT DEFAULT '#065f46',
       store_name TEXT NOT NULL,
       delivery_zone TEXT DEFAULT '{}',
+      hours TEXT DEFAULT '{}',
       is_active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
@@ -242,6 +243,8 @@ function initSchema(db: Database) {
     "ALTER TABLE driver_applications ADD COLUMN drug_policy_consent INTEGER DEFAULT 0",
     "ALTER TABLE driver_applications ADD COLUMN contractor_agreement_consent INTEGER DEFAULT 0",
     "ALTER TABLE driver_applications ADD COLUMN compliance_acknowledgment INTEGER DEFAULT 0",
+    // Store hours: JSON object per day, e.g. {"monday":{"open":"09:00","close":"21:00","closed":false,"allDay":false},...}
+    "ALTER TABLE tenants ADD COLUMN hours TEXT DEFAULT '{}'",
   ]) {
     try { db.run(statement); } catch { /* column already exists */ }
   }

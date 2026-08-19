@@ -9,6 +9,7 @@ const merchantNavItems = [
   { label: "Orders", href: "/dashboard/merchant/orders", icon: <Icon name="clipboard" size={18} /> },
   { label: "Tracking", href: "/dashboard/merchant/tracking", icon: <Icon name="car" size={18} /> },
   { label: "Analytics", href: "/dashboard/merchant/analytics", icon: <Icon name="chart" size={18} /> },
+  { label: "Settings", href: "/dashboard/merchant/settings", icon: <Icon name="settings" size={18} /> },
 ];
 
 export const Route = createFileRoute("/dashboard/merchant")({
