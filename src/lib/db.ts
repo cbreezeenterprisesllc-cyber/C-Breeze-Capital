@@ -260,6 +260,10 @@ function initSchema(db: Database) {
     "ALTER TABLE orders ADD COLUMN signature TEXT",
     "ALTER TABLE orders ADD COLUMN verified_by TEXT",
     "ALTER TABLE orders ADD COLUMN verified_at TEXT",
+    // Driver identity verification (start-of-delivery selfie) + reference selfie on file
+    "ALTER TABLE users ADD COLUMN reference_selfie TEXT",
+    "ALTER TABLE orders ADD COLUMN start_selfie TEXT",
+    "ALTER TABLE orders ADD COLUMN started_at TEXT",
   ]) {
     try { db.run(statement); } catch { /* column already exists */ }
   }

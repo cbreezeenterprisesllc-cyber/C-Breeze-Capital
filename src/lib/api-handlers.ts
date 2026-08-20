@@ -252,7 +252,7 @@ export function handleListOrders(url: URL): Response {
   const status = url.searchParams.get("status");
 
   const db = getDb();
-  let query = "SELECT o.*, u.name as customer_name, (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) as item_count FROM orders o JOIN users u ON o.customer_id = u.id WHERE 1=1";
+  let query = "SELECT o.*, u.name as customer_name, (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) as item_count, d.reference_selfie as driver_reference_selfie FROM orders o JOIN users u ON o.customer_id = u.id LEFT JOIN users d ON d.id = o.driver_id WHERE 1=1";
   const params: unknown[] = [];
 
   if (tenantId) { query += " AND o.tenant_id = ?"; params.push(tenantId); }
@@ -391,6 +391,53 @@ export function handleDeliverOrder(
   const updated = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
   return json({ success: true, data: updated });
 }
+// PUT /api/drivers/me/selfie — set the operator's on-file reference selfie (driver onboarding)
+export function handleSetDriverSelfie(
+  body: Record<string, unknown>,
+  auth: { userId: string; role: string; tenantId?: string } | null,
+): Response {
+  if (!auth) return error("Unauthorized", 401);
+  const selfie = body.selfie;
+  if (!selfie || typeof selfie !== "string") return error("A selfie image is required");
+  if (!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(selfie) || selfie.length < 200) {
+    return error("A captured selfie image is required (PNG or JPEG)");
+  }
+  const db = getDb();
+  db.prepare("UPDATE users SET reference_selfie = ?, updated_at = datetime('now') WHERE id = ?").run(selfie, auth.userId);
+  return json({ success: true, data: { reference_selfie: selfie } });
+}
+// POST /api/orders/:id/start — driver identity selfie check at the START of delivery.
+// Required before the assigned courier can begin/proceed an order. Mandatory live selfie,
+// persisted alongside the on-file reference selfie for merchant/admin review (no auto face-matching).
+export function handleStartDelivery(
+  orderId: string,
+  body: Record<string, unknown>,
+  auth: { userId: string; role: string; tenantId?: string } | null,
+): Response {
+  if (!auth) return error("Unauthorized", 401);
+  const selfie = body.selfie;
+  if (!selfie || typeof selfie !== "string") return error("A selfie is required to start this delivery");
+  if (!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(selfie) || selfie.length < 200) {
+    return error("A captured selfie image is required (PNG or JPEG)");
+  }
+  const db = getDb();
+  const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId) as Record<string, any> | undefined;
+  if (!order) return error("Order not found", 404);
+  if (order.status === "delivered") return error("This delivery is already completed", 409);
+  if (order.status === "cancelled") return error("Cancelled orders cannot be started", 409);
+  if (order.start_selfie) return error("This delivery has already been started", 409);
+  // Identity-based: the assigned courier, the order's merchant, or an admin may start.
+  const isDriver = !!order.driver_id && order.driver_id === auth.userId;
+  const isMerchant = auth.role === "merchant" && order.tenant_id === auth.tenantId;
+  const isAdmin = auth.role === "admin";
+  if (!isDriver && !isMerchant && !isAdmin) return error("Forbidden", 403);
+  db.prepare(
+    `UPDATE orders SET status='in_transit', start_selfie=?, started_at=datetime('now'), updated_at=datetime('now') WHERE id=?`
+  ).run(selfie, orderId);
+  const updated = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
+  return json({ success: true, data: updated }, 201);
+}
+
 // GET /api/categories?tenantId=xxx
 export function handleListCategories(url: URL): Response {
   const tenantId = url.searchParams.get("tenantId");

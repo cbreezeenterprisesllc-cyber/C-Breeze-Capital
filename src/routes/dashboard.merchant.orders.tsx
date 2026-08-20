@@ -191,6 +191,25 @@ function OrdersPage() {
               <div className="flex justify-between font-bold text-base"><span>Total</span><span>${Number(cur.total || 0).toFixed(2)}</span></div>
             </div>
 
+
+            {cur.started_at && (
+              <div className="mt-5 rounded-lg border border-[var(--color-primary-200)] bg-[var(--color-primary-50)]/40 p-4">
+                <p className="flex items-center gap-2 text-sm font-semibold text-[var(--color-primary-700)] mb-2"><Icon name="camera" size={16} /> Driver identity check-in (start of delivery)</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <div><span className="text-[var(--color-neutral-500)]">Started at</span><p className="font-medium">{fmtTime(cur.started_at)}</p></div>
+                  <div><span className="text-[var(--color-neutral-500)]">Driver ID</span><p className="font-medium">{cur.driver_id ? cur.driver_id.slice(0, 8) : "—"}</p></div>
+                </div>
+                <div className="mt-3 flex gap-6">
+                  {cur.driver_reference_selfie && (
+                    <div><span className="text-xs text-[var(--color-neutral-500)]">Reference selfie (on file)</span><img src={cur.driver_reference_selfie} alt="reference" className="mt-1 h-20 w-16 rounded border border-[var(--color-neutral-200)] bg-white object-cover" /></div>
+                  )}
+                  {cur.start_selfie && (
+                    <div><span className="text-xs text-[var(--color-neutral-500)]">Start-of-delivery selfie</span><img src={cur.start_selfie} alt="start selfie" className="mt-1 h-20 w-16 rounded border border-[var(--color-neutral-200)] bg-white object-cover" /></div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {cur.status === "delivered" && (
               <div className="mt-5 rounded-lg border border-[var(--color-success-200)] bg-[var(--color-success-50)]/40 p-4">
                 <p className="flex items-center gap-2 text-sm font-semibold text-[var(--color-success-700)] mb-2">
