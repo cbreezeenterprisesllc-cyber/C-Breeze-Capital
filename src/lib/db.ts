@@ -102,6 +102,13 @@ function initSchema(db: Database) {
       driver_id TEXT,
       estimated_delivery_at TEXT,
       delivered_at TEXT,
+      id_document_type TEXT,
+      id_last_four TEXT,
+      id_dob TEXT,
+      id_name TEXT,
+      signature TEXT,
+      verified_by TEXT,
+      verified_at TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (tenant_id) REFERENCES tenants(id),
@@ -245,6 +252,14 @@ function initSchema(db: Database) {
     "ALTER TABLE driver_applications ADD COLUMN compliance_acknowledgment INTEGER DEFAULT 0",
     // Store hours: JSON object per day, e.g. {"monday":{"open":"09:00","close":"21:00","closed":false,"allDay":false},...}
     "ALTER TABLE tenants ADD COLUMN hours TEXT DEFAULT '{}'",
+    // Delivery ID verification + signature capture columns
+    "ALTER TABLE orders ADD COLUMN id_document_type TEXT",
+    "ALTER TABLE orders ADD COLUMN id_last_four TEXT",
+    "ALTER TABLE orders ADD COLUMN id_dob TEXT",
+    "ALTER TABLE orders ADD COLUMN id_name TEXT",
+    "ALTER TABLE orders ADD COLUMN signature TEXT",
+    "ALTER TABLE orders ADD COLUMN verified_by TEXT",
+    "ALTER TABLE orders ADD COLUMN verified_at TEXT",
   ]) {
     try { db.run(statement); } catch { /* column already exists */ }
   }

@@ -60,7 +60,7 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
     handleHealth, handleRegister, handleLogin,
     handleListTenants, handleCreateTenant, handleGetTenant, handleUpdateTenantHours,
     handleListProducts, handleCreateProduct, handleGetProduct, handleUpdateProduct,
-    handleListOrders, handleCreateOrder, handleGetOrder, handleUpdateOrderStatus,
+    handleListOrders, handleCreateOrder, handleGetOrder, handleUpdateOrderStatus, handleDeliverOrder,
     handleListCategories, handleCreateCategory, handleOrderStream,
     handleCreateCheckoutSession,
     handleDriverApply, handleDriverStatus,
@@ -106,6 +106,8 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
   if (method === "POST" && path === "/api/orders") return handleCreateOrder(body);
   const orderStatusMatch = path.match(/^\/api\/orders\/([^/]+)\/status$/);
   if (method === "PUT" && orderStatusMatch) return handleUpdateOrderStatus(orderStatusMatch[1], body);
+  const deliverMatch = path.match(/^\/api\/orders\/([^/]+)\/deliver$/);
+  if (method === "PUT" && deliverMatch) return handleDeliverOrder(deliverMatch[1], body, requireAuth(req, ["driver", "merchant", "admin"]));
   const orderMatch = path.match(/^\/api\/orders\/([^/]+)$/);
   if (method === "GET" && orderMatch) return handleGetOrder(orderMatch[1]);
 

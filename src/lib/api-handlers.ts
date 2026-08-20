@@ -236,6 +236,7 @@ export function handleUpdateProduct(productId: string, body: Record<string, unkn
 export function handleListOrders(url: URL): Response {
   const tenantId = url.searchParams.get("tenantId");
   const customerId = url.searchParams.get("customerId");
+  const driverId = url.searchParams.get("driverId");
   const status = url.searchParams.get("status");
 
   const db = getDb();
@@ -244,6 +245,7 @@ export function handleListOrders(url: URL): Response {
 
   if (tenantId) { query += " AND o.tenant_id = ?"; params.push(tenantId); }
   if (customerId) { query += " AND o.customer_id = ?"; params.push(customerId); }
+  if (driverId) { query += " AND o.driver_id = ?"; params.push(driverId); }
   if (status) { query += " AND o.status = ?"; params.push(status); }
 
   query += " ORDER BY o.created_at DESC LIMIT 50";
@@ -337,6 +339,46 @@ export function handleUpdateOrderStatus(orderId: string, body: Record<string, un
   return json({ success: true, data: order });
 }
 
+// PUT /api/orders/:id/deliver — REAL door-step ID verification + signature capture.
+// Assigned driver, the order's merchant, or admin may complete a delivery. Requires
+// non-empty ID fields and a captured signature (PNG/JPEG data URL). Persists the
+// verification and marks the order delivered. Refuses to overwrite an existing delivery.
+export function handleDeliverOrder(
+  orderId: string,
+  body: Record<string, unknown>,
+  auth: { userId: string; role: string; tenantId?: string } | null,
+): Response {
+  if (!auth) return error("Unauthorized", 401);
+  const { idDocumentType, idLastFour, idDob, idName, signature } = body as Record<string, unknown>;
+  if (!idDocumentType || !idLastFour || !idDob || !idName || !signature) {
+    return error("ID document details and a customer signature are required to complete delivery");
+  }
+  const lastFour = String(idLastFour).replace(/\D/g, "").slice(-4);
+  if (lastFour.length < 4) return error("Enter the last 4 digits of the ID number");
+  const sig = String(signature);
+  if (!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(sig) || sig.length < 200) {
+    return error("A captured signature image is required");
+  }
+  const db = getDb();
+  const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId) as Record<string, any> | undefined;
+  if (!order) return error("Order not found", 404);
+  if (order.status === "delivered" || order.verified_at) return error("This delivery is already completed", 409);
+  if (order.status === "cancelled") return error("Cancelled orders cannot be delivered", 409);
+  // The courier assigned to the order is authorized to complete delivery (identity-based),
+  // regardless of which of the allowed roles (driver/merchant/admin) their token carries.
+  const isDriver = !!order.driver_id && order.driver_id === auth.userId;
+  const isMerchant = auth.role === "merchant" && order.tenant_id === auth.tenantId;
+  const isAdmin = auth.role === "admin";
+  if (!isDriver && !isMerchant && !isAdmin) return error("Forbidden", 403);
+  db.prepare(
+    `UPDATE orders SET status='delivered', delivered_at=datetime('now'),
+      id_document_type=?, id_last_four=?, id_dob=?, id_name=?, signature=?,
+      verified_by=?, verified_at=datetime('now'), updated_at=datetime('now')
+     WHERE id=?`
+  ).run(String(idDocumentType), lastFour, String(idDob), String(idName), sig, auth.userId, orderId);
+  const updated = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
+  return json({ success: true, data: updated });
+}
 // GET /api/categories?tenantId=xxx
 export function handleListCategories(url: URL): Response {
   const tenantId = url.searchParams.get("tenantId");
