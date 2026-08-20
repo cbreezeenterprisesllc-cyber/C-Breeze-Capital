@@ -497,9 +497,9 @@ export function handleClaimOrder(orderId: string, auth: { userId: string; role: 
   if (res.changes === 0) return error("This order was just claimed by another driver", 409);
   const updated = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
   return json({ success: true, data: updated });
-}
+  }
 
-// GET /api/categories?tenantId=xxx
+  // GET /api/categories?tenantId=xxx
 export function handleListCategories(url: URL): Response {
   const tenantId = url.searchParams.get("tenantId");
   if (!tenantId) return error("tenantId query parameter is required");

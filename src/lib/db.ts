@@ -265,6 +265,10 @@ function initSchema(db: Database) {
     "ALTER TABLE tenants ADD COLUMN lng REAL",
     "ALTER TABLE users ADD COLUMN current_lat REAL",
     "ALTER TABLE users ADD COLUMN current_lng REAL",
+    // Driver identity verification (start-of-delivery selfie) + reference selfie on file
+    "ALTER TABLE users ADD COLUMN reference_selfie TEXT",
+    "ALTER TABLE orders ADD COLUMN start_selfie TEXT",
+    "ALTER TABLE orders ADD COLUMN started_at TEXT",
   ]) {
     try { db.run(statement); } catch { /* column already exists */ }
   }

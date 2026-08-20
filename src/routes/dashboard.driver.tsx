@@ -27,6 +27,9 @@ type Order = {
   id_last_four: string | null;
   id_name: string | null;
   verified_at: string | null;
+  started_at: string | null;
+  start_selfie: string | null;
+  driver_reference_selfie: string | null;
 };
 
 const ACTIVE = ["confirmed", "preparing", "in_transit"];
@@ -103,6 +106,76 @@ function SignaturePad({ onChange }: { onChange: (dataUrl: string) => void }) {
   );
 }
 
+function SelfieCapture({ onChange }: { onChange: (d: string) => void }) {
+  const [preview, setPreview] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const read = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => { const d = String(rd.result || ""); setPreview(d); onChange(d); };
+    rd.readAsDataURL(f);
+  };
+  return (
+    <div>
+      <div className="rounded-lg border border-dashed border-[var(--color-neutral-300)] bg-[var(--color-neutral-50)] p-4 text-center">
+        {preview ? <img src={preview} alt="selfie" className="mx-auto h-40 w-32 rounded-lg object-cover" /> : <Icon name="camera" size={24} />}
+        {!preview && <p className="mt-1 text-sm text-[var(--color-neutral-500)]">Capture a live selfie</p>}
+        <input ref={fileRef} type="file" accept="image/*" capture="user" onChange={read} className="hidden" />
+        <div className="mt-3 flex justify-center gap-2">
+          <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()}>{preview ? "Retake selfie" : "Open camera / choose photo"}</Button>
+          {preview && <Button size="sm" variant="ghost" onClick={() => { setPreview(null); onChange(""); }}>Clear</Button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+function StartModal({ order, token, onDone, onClose }: { order: Order; token: string; onDone: () => void; onClose: () => void }) {
+  const [selfie, setSelfie] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submit = async () => {
+    setError(null);
+    if (!selfie) return setError("Capture a selfie to start this delivery.");
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ selfie }),
+      });
+      const p = await res.json();
+      if (!res.ok) return setError(p.error || "Failed to start delivery.");
+      onDone(); onClose();
+    } catch { setError("Network error."); } finally { setSaving(false); }
+  };
+  return (
+    <Modal open onClose={onClose} title={<span className="flex items-center gap-2"><Icon name="camera" size={18} /> Start Delivery — {order.id.slice(0, 8)}</span>} size="md">
+      <div className="space-y-4">
+        <div className="rounded-lg border border-[var(--color-neutral-200)] bg-[var(--color-neutral-50)] p-3 text-sm">
+          <p className="font-semibold text-[var(--color-neutral-800)]">{order.customer_name || "Customer"}</p>
+          <p className="text-[var(--color-neutral-500)]">{order.delivery_address}</p>
+          <p className="font-medium text-[var(--color-primary-700)]">${order.total.toFixed(2)}</p>
+        </div>
+        <p className="text-xs text-[var(--color-neutral-500)]">Verify the courier&apos;s identity before beginning the delivery. Capture a live selfie and compare it to the selfie on file (manual check — no automated face-matching).</p>
+        {order.driver_reference_selfie && (
+          <div className="flex items-center gap-3 rounded-lg border border-[var(--color-neutral-200)] p-3">
+            <img src={order.driver_reference_selfie} alt="Reference selfie on file" className="h-20 w-16 rounded object-cover" />
+            <span className="text-xs text-[var(--color-neutral-500)]">Selfie on file<br />(quick identity reference)</span>
+          </div>
+        )}
+        <div>
+          <span className="text-xs font-medium text-[var(--color-neutral-600)]">Live courier selfie</span>
+          <div className="mt-1"><SelfieCapture onChange={setSelfie} /></div>
+        </div>
+        {error && <div className="rounded-lg bg-[var(--color-danger-50)] px-3 py-2 text-sm text-[var(--color-danger-700)]">{error}</div>}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={submit} disabled={saving}>{saving ? "Starting…" : "Start Delivery"}</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
 function DeliverModal({ order, token, onDone, onClose }: { order: Order; token: string; onDone: () => void; onClose: () => void }) {
   const [docType, setDocType] = useState("drivers_license");
   const [lastFour, setLastFour] = useState("");
@@ -186,6 +259,7 @@ function DeliveriesTab() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
+  const [startOrder, setStartOrder] = useState<Order | null>(null);
 
   const load = useCallback(async () => {
     const token = getChatToken();
@@ -248,7 +322,11 @@ function DeliveriesTab() {
             </div>
             <div className="flex items-center justify-between border-t border-[var(--color-neutral-100)] pt-3">
               <span className="text-sm font-medium">${o.total.toFixed(2)}</span>
-              <Button onClick={() => setActiveOrder(o)}><Icon name="clipboard" size={16} /> Verify ID &amp; Complete Delivery</Button>
+              {o.started_at ? (
+                <Button onClick={() => setActiveOrder(o)}><Icon name="clipboard" size={16} /> Verify ID &amp; Complete Delivery</Button>
+              ) : (
+                <Button variant="secondary" onClick={() => setStartOrder(o)}><Icon name="camera" size={16} /> Verify identity &amp; Start Delivery</Button>
+              )}
             </div>
           </div>
         </Card>
@@ -273,6 +351,9 @@ function DeliveriesTab() {
         </div>
       )}
 
+      {startOrder && (
+        <StartModal order={startOrder} token={getChatToken() || ""} onClose={() => setStartOrder(null)} onDone={() => load()} />
+      )}
       {activeOrder && (
         <DeliverModal order={activeOrder} token={getChatToken() || ""} onClose={() => setActiveOrder(null)} onDone={() => load()} />
       )}
