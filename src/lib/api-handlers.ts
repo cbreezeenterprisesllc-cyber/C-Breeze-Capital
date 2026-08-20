@@ -168,13 +168,25 @@ export function handleUpdateTenantHours(
 // GET /api/products?tenantId=xxx
 export function handleListProducts(url: URL): Response {
   const tenantId = url.searchParams.get("tenantId");
+  const all = url.searchParams.get("all");
   if (!tenantId) return error("tenantId query parameter is required");
 
   const db = getDb();
-  const products = db.prepare(
-    "SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.tenant_id = ? AND p.is_active = 1 ORDER BY p.name"
-  ).all(tenantId);
+  // Storefront only shows active products; merchant inventory passes all=1 to manage the full catalog.
+  const query = all === "1"
+    ? "SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.tenant_id = ? ORDER BY p.name"
+    : "SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.tenant_id = ? AND p.is_active = 1 ORDER BY p.name";
+  const products = db.prepare(query).all(tenantId);
   return json({ success: true, data: products });
+}
+// DELETE /api/products/:id — soft-delete (is_active=0) so the item drops off the storefront
+// while preserving order history. Non-destructive.
+export function handleDeleteProduct(productId: string): Response {
+  const db = getDb();
+  const existing = db.prepare("SELECT id FROM products WHERE id = ?").get(productId);
+  if (!existing) return error("Product not found", 404);
+  db.prepare("UPDATE products SET is_active = 0, updated_at = datetime('now') WHERE id = ?").run(productId);
+  return json({ success: true, data: { id: productId, is_active: 0 } });
 }
 
 // POST /api/products
@@ -240,7 +252,7 @@ export function handleListOrders(url: URL): Response {
   const status = url.searchParams.get("status");
 
   const db = getDb();
-  let query = "SELECT o.*, u.name as customer_name FROM orders o JOIN users u ON o.customer_id = u.id WHERE 1=1";
+  let query = "SELECT o.*, u.name as customer_name, (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) as item_count FROM orders o JOIN users u ON o.customer_id = u.id WHERE 1=1";
   const params: unknown[] = [];
 
   if (tenantId) { query += " AND o.tenant_id = ?"; params.push(tenantId); }
