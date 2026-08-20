@@ -60,7 +60,7 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
     handleHealth, handleRegister, handleLogin,
     handleListTenants, handleCreateTenant, handleGetTenant, handleUpdateTenantHours,
     handleListProducts, handleCreateProduct, handleGetProduct, handleUpdateProduct, handleDeleteProduct,
-    handleListOrders, handleCreateOrder, handleGetOrder, handleUpdateOrderStatus, handleDeliverOrder,
+    handleListOrders, handleCreateOrder, handleGetOrder, handleUpdateOrderStatus, handleDeliverOrder, handleSetDriverLocation, handleListAvailableOrders, handleClaimOrder,
     handleListCategories, handleCreateCategory, handleOrderStream,
     handleCreateCheckoutSession,
     handleDriverApply, handleDriverStatus,
@@ -100,6 +100,10 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
 
   // Orders stream (before order/:id to avoid conflict)
   if (method === "GET" && path === "/api/orders/stream") return handleOrderStream(url);
+  if (method === "GET" && path === "/api/orders/available") return handleListAvailableOrders(requireAuth(req, ["driver", "merchant", "admin"]), url);
+  const claimMatch = path.match(/^\/api\/orders\/([^/]+)\/claim$/);
+  if (method === "POST" && claimMatch) return handleClaimOrder(claimMatch[1], requireAuth(req, ["driver", "merchant", "admin"]));
+  if (method === "PUT" && path === "/api/me/location") return handleSetDriverLocation(body, requireAuth(req, ["driver", "merchant", "admin"]));
 
   // Orders
   if (method === "GET" && path === "/api/orders") return handleListOrders(url);

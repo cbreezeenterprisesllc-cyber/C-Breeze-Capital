@@ -391,6 +391,67 @@ export function handleDeliverOrder(
   const updated = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
   return json({ success: true, data: updated });
 }
+// haversine distance in miles
+function havMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 3958.8; const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1); const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+// PUT /api/me/location — driver sets current location (browser geolocation or manual fallback)
+export function handleSetDriverLocation(
+  body: Record<string, unknown>,
+  auth: { userId: string; role: string; tenantId?: string } | null,
+): Response {
+  if (!auth) return error("Unauthorized", 401);
+  const lat = Number(body.lat); const lng = Number(body.lng);
+  if (!isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return error("Valid latitude and longitude are required");
+  const db = getDb();
+  db.prepare("UPDATE users SET current_lat = ?, current_lng = ?, updated_at = datetime('now') WHERE id = ?").run(lat, lng, auth.userId);
+  return json({ success: true, data: { current_lat: lat, current_lng: lng } });
+}
+// GET /api/orders/available?lat=&lng=&radius= — open orders from dispensaries near the driver
+export function handleListAvailableOrders(
+  auth: { userId: string; role: string; tenantId?: string } | null,
+  url: URL,
+): Response {
+  if (!auth) return error("Unauthorized", 401);
+  const latP = url.searchParams.get("lat");
+  const lngP = url.searchParams.get("lng");
+  let lat = latP !== null && latP !== "" ? Number(latP) : NaN;
+  let lng = lngP !== null && lngP !== "" ? Number(lngP) : NaN;
+  const radius = Number(url.searchParams.get("radius")) || 25;
+  const db = getDb();
+  if (!isFinite(lat) || !isFinite(lng)) {
+    const me = db.prepare("SELECT current_lat, current_lng FROM users WHERE id = ?").get(auth.userId) as any;
+    if (me && isFinite(me.current_lat)) { lat = me.current_lat; lng = me.current_lng; }
+  }
+  if (!isFinite(lat) || !isFinite(lng)) return json({ success: true, data: [] });
+  const open = db.prepare(
+    "SELECT o.*, t.name as dispensary, t.lat as t_lat, t.lng as t_lng FROM orders o JOIN tenants t ON o.tenant_id = t.id WHERE o.driver_id IS NULL AND o.status IN ('pending','confirmed','preparing') ORDER BY o.created_at DESC LIMIT 50"
+  ).all();
+  const data = open.map((o: any) => {
+    if (o.t_lat == null || o.t_lng == null) return null;
+    const dist = havMiles(lat, lng, o.t_lat, o.t_lng);
+    if (dist > radius) return null;
+    return { id: o.id, status: o.status, total: o.total, delivery_fee: o.delivery_fee, delivery_address: o.delivery_address, customer_name: o.customer_name ?? null, dispensary: o.dispensary, distance_mi: Math.round(dist * 10) / 10, tenant_id: o.tenant_id };
+  }).filter(Boolean);
+  return json({ success: true, data });
+}
+// POST /api/orders/:id/claim — driver claims an open order (assigns orders.driver_id); 409 on double-claim
+export function handleClaimOrder(orderId: string, auth: { userId: string; role: string; tenantId?: string } | null): Response {
+  if (!auth) return error("Unauthorized", 401);
+  const db = getDb();
+  const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId) as any;
+  if (!order) return error("Order not found", 404);
+  if (order.driver_id) return error("This order is already claimed", 409);
+  if (order.status === "delivered" || order.status === "cancelled") return error("This order is not available to claim", 409);
+  const res = db.prepare("UPDATE orders SET driver_id = ?, updated_at = datetime('now') WHERE id = ? AND driver_id IS NULL").run(auth.userId, orderId);
+  if (res.changes === 0) return error("This order was just claimed by another driver", 409);
+  const updated = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
+  return json({ success: true, data: updated });
+}
+
 // GET /api/categories?tenantId=xxx
 export function handleListCategories(url: URL): Response {
   const tenantId = url.searchParams.get("tenantId");

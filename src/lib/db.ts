@@ -260,6 +260,11 @@ function initSchema(db: Database) {
     "ALTER TABLE orders ADD COLUMN signature TEXT",
     "ALTER TABLE orders ADD COLUMN verified_by TEXT",
     "ALTER TABLE orders ADD COLUMN verified_at TEXT",
+    // Real dispatch: dispensary coordinates + driver location (proximity dispatch)
+    "ALTER TABLE tenants ADD COLUMN lat REAL",
+    "ALTER TABLE tenants ADD COLUMN lng REAL",
+    "ALTER TABLE users ADD COLUMN current_lat REAL",
+    "ALTER TABLE users ADD COLUMN current_lng REAL",
   ]) {
     try { db.run(statement); } catch { /* column already exists */ }
   }

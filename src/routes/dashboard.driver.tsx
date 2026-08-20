@@ -280,17 +280,154 @@ function DeliveriesTab() {
   );
 }
 
+type AvailOrder = {
+  id: string;
+  status: string;
+  total: number;
+  delivery_fee: number | null;
+  delivery_address: string;
+  customer_name?: string;
+  dispensary: string;
+  distance_mi: number;
+  tenant_id: string;
+};
+
+function AvailableOrdersTab() {
+  const token = getChatToken();
+  const [orders, setOrders] = useState<AvailOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
+  const [mLat, setMLat] = useState("");
+  const [mLng, setMLng] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!token) { setLoading(false); return; }
+    try {
+      const res = await fetch(`/api/orders/available`, { headers: { Authorization: `Bearer ${token}` } });
+      const p = await res.json();
+      setOrders(Array.isArray(p.data) ? p.data : []);
+    } catch { /* ignore */ } finally { setLoading(false); }
+  }, [token]);
+  useEffect(() => { load(); }, [load]);
+
+  const saveLocation = async (lat: number, lng: number) => {
+    setErr(null); setMsg(null);
+    if (!token) { setErr("Not signed in."); return; }
+    const res = await fetch(`/api/me/location`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ lat, lng }),
+    });
+    const p = await res.json();
+    if (!res.ok) { setErr(p.error || "Failed to save location."); return; }
+    setGeo({ lat, lng }); setMsg("Location saved — showing nearby orders.");
+    await load();
+  };
+
+  const useGeolocation = () => {
+    setErr(null);
+    if (!navigator.geolocation) { setErr("Geolocation isn't available in this browser — enter your location manually below."); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { const { latitude, longitude } = pos.coords; setMLat(latitude.toFixed(6)); setMLng(longitude.toFixed(6)); saveLocation(latitude, longitude); },
+      () => setErr("Couldn't get your location — allow location access or enter it manually below."),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const manualSave = () => {
+    const lat = Number(mLat); const lng = Number(mLng);
+    if (!isFinite(lat) || !isFinite(lng)) return setErr("Enter valid latitude and longitude.");
+    saveLocation(lat, lng);
+  };
+
+  const claim = async (id: string) => {
+    setErr(null); setMsg(null);
+    if (!token) { setErr("Not signed in."); return; }
+    const res = await fetch(`/api/orders/${id}/claim`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+    const p = await res.json();
+    if (!res.ok) { setErr(p.error || "Couldn't claim that order."); return; }
+    setMsg("Claimed — it's now in your Deliveries.");
+    await load();
+  };
+
+  if (!token) {
+    return (
+      <Card><div className="p-6 text-center text-sm text-[var(--color-neutral-500)]">Sign in with a driver account in the Deliveries tab to see nearby orders.</div></Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-serif font-bold">Available Nearby</h2>
+        <p className="text-sm text-[var(--color-neutral-500)]">Unclaimed orders from dispensaries near your current location.</p>
+      </div>
+
+      <Card>
+        <div className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold">Your location</span>
+            <Button size="sm" variant="secondary" onClick={useGeolocation}>Use my location</Button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-xs font-medium text-[var(--color-neutral-600)]">Latitude
+              <input value={mLat} onChange={(e) => setMLat(e.target.value)} className="mt-1 w-full rounded-lg border border-[var(--color-neutral-300)] bg-white px-3 py-2 text-sm" placeholder="e.g. 45.5231" />
+            </label>
+            <label className="text-xs font-medium text-[var(--color-neutral-600)]">Longitude
+              <input value={mLng} onChange={(e) => setMLng(e.target.value)} className="mt-1 w-full rounded-lg border border-[var(--color-neutral-300)] bg-white px-3 py-2 text-sm" placeholder="e.g. -122.6765" />
+            </label>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-[var(--color-neutral-500)]">{geo ? `Saved: ${geo.lat.toFixed(3)}, ${geo.lng.toFixed(3)}` : "No location set yet — set one to find nearby orders."}</span>
+            <Button size="sm" onClick={manualSave}>Save location</Button>
+          </div>
+          {msg && <div className="rounded-lg bg-[var(--color-success-50)] px-3 py-2 text-sm text-[var(--color-success-700)]">{msg}</div>}
+          {err && <div className="rounded-lg bg-[var(--color-danger-50)] px-3 py-2 text-sm text-[var(--color-danger-700)]">{err}</div>}
+        </div>
+      </Card>
+
+      {loading && <Card><div className="p-6 text-center text-sm text-[var(--color-neutral-500)]">Loading nearby orders…</div></Card>}
+      {!loading && orders.length === 0 && (
+        <Card><div className="p-6 text-center text-sm text-[var(--color-neutral-500)]">No unclaimed orders nearby right now. Try updating your location — a dispensary may be a little farther away.</div></Card>
+      )}
+      {orders.map((o) => (
+        <Card key={o.id}>
+          <div className="p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold truncate">{o.dispensary} — {o.id.slice(0, 8)}</p>
+                <p className="text-sm text-[var(--color-neutral-500)] truncate">{o.delivery_address}</p>
+                {o.customer_name && <p className="text-xs text-[var(--color-neutral-500)]">{o.customer_name}</p>}
+              </div>
+              <Badge variant="primary">{o.distance_mi.toFixed(1)} mi away</Badge>
+            </div>
+            <div className="flex items-center justify-between border-t border-[var(--color-neutral-100)] pt-3">
+              <span className="text-sm font-medium">${o.total.toFixed(2)} <span className="text-xs text-[var(--color-neutral-400)]">+ ${(o.delivery_fee || 0).toFixed(2)} delivery</span></span>
+              <Button size="sm" onClick={() => claim(o.id)}>Claim</Button>
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 function DriverPanel() {
-  const [tab, setTab] = useState<"deliveries" | "chat">("deliveries");
+  const [tab, setTab] = useState<"deliveries" | "available" | "chat">("deliveries");
   return (
     <div className="space-y-4">
       <div className="flex gap-1 rounded-lg bg-[var(--color-neutral-100)] p-1 w-fit">
         <button onClick={() => setTab("deliveries")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${tab === "deliveries" ? "bg-white shadow text-[var(--color-primary-700)]" : "text-[var(--color-neutral-500)]"}`}>Deliveries</button>
+        <button onClick={() => setTab("available")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${tab === "available" ? "bg-white shadow text-[var(--color-primary-700)]" : "text-[var(--color-neutral-500)]"}`}>Available Nearby</button>
         <button onClick={() => setTab("chat")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${tab === "chat" ? "bg-white shadow text-[var(--color-primary-700)]" : "text-[var(--color-neutral-500)]"}`}>Messages</button>
       </div>
       <Card>
         <div className="p-4 sm:p-6">
-          {tab === "deliveries" ? <DeliveriesTab /> : (
+          {tab === "deliveries" && <DeliveriesTab />}
+          {tab === "available" && <AvailableOrdersTab />}
+          {tab === "chat" && (
             <ChatInbox viewerRole="driver" viewerId={getChatUser()?.id || ""} title="Driver messages" subtitle="Chat threads for the orders assigned to you — message customers and the store from one panel." />
           )}
         </div>
