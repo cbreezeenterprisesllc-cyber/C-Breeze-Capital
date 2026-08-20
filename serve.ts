@@ -59,7 +59,7 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
   const {
     handleHealth, handleRegister, handleLogin,
     handleListTenants, handleCreateTenant, handleGetTenant, handleUpdateTenantHours,
-    handleListProducts, handleCreateProduct, handleGetProduct, handleUpdateProduct,
+    handleListProducts, handleCreateProduct, handleGetProduct, handleUpdateProduct, handleDeleteProduct,
     handleListOrders, handleCreateOrder, handleGetOrder, handleUpdateOrderStatus, handleDeliverOrder,
     handleListCategories, handleCreateCategory, handleOrderStream,
     handleCreateCheckoutSession,
@@ -117,6 +117,7 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
   const productMatch = path.match(/^\/api\/products\/([^/]+)$/);
   if (method === "GET" && productMatch) return handleGetProduct(productMatch[1]);
   if (method === "PUT" && productMatch) return handleUpdateProduct(productMatch[1], body);
+  if (method === "DELETE" && productMatch) return handleDeleteProduct(productMatch[1]);
 
   // Categories
   if (method === "GET" && path === "/api/categories") return handleListCategories(url);
