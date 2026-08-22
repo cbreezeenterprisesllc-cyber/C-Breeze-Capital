@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import { useLocation } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 
 interface NavItem {
   label: string;
@@ -166,6 +166,19 @@ function NavItemRow({
       : "text-[var(--color-neutral-600)]";
 
   if (item.href) {
+    // Use client-side routing for internal links so SPA state (e.g. the cart
+    // context) survives navigation. Full-page loads wipe in-memory state.
+    if (item.href.startsWith("/")) {
+      return (
+        <Link
+          to={item.href}
+          className={`${baseClasses} ${item.active ? activeClasses : `${inactiveClasses} ${hoverClasses}`}`}
+        >
+          {item.icon && <span className="w-5 h-5 shrink-0">{item.icon}</span>}
+          {item.label}
+        </Link>
+      );
+    }
     return (
       <a
         href={item.href}
