@@ -4,7 +4,22 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, "..", "..", "data");
+
+// Resolve the data directory robustly regardless of how deeply this module is
+// bundled. At serve time process.cwd() is the project root, so prefer a CWD
+// "data" dir that actually holds greenexpress.db (the populated source one).
+// The naive module-relative path (join(__dirname, "..", "..", "data")) lands on
+// dist/data/greenexpress.db when this file is bundled under dist/server/assets/,
+// which is a stale empty copy and made the SSR /dispensaries listing empty.
+let DATA_DIR: string;
+function resolveDataDir(): string {
+  if (typeof process !== "undefined" && typeof process.cwd === "function") {
+    const cwdDir = join(process.cwd(), "data");
+    if (existsSync(join(cwdDir, "greenexpress.db"))) return cwdDir;
+  }
+  return join(__dirname, "..", "..", "data");
+}
+DATA_DIR = resolveDataDir();
 
 if (!existsSync(DATA_DIR)) {
   mkdirSync(DATA_DIR, { recursive: true });
