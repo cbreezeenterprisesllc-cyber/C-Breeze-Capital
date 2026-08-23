@@ -276,6 +276,21 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
   const db = getDb();
   const id = generateId();
 
+  // Guest checkout sends a synthetic id ("anon-<timestamp>") that never exists in
+  // users — but orders.customer_id has a FOREIGN KEY to users(id). Persist a real
+  // users row for the guest so the FK holds and integrity is preserved. Logged-in
+  // customers pass a real user id and are unaffected.
+  const isGuest = String(customerId).startsWith("anon-");
+  if (isGuest) {
+    const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(customerId);
+    if (!existing) {
+      const guestEmail = `${String(customerId)}@guest.greenexpress.app`;
+      const guestHash = hashPassword(generateId() + Date.now()); // unguessable; guest can't log in
+      db.prepare(
+        "INSERT INTO users (id, email, password_hash, name, role, age_verified, is_active) VALUES (?, ?, ?, ?, 'customer', 1, 1)"
+      ).run(String(customerId), guestEmail, guestHash, "Guest");
+    }
+  }
   // Calculate total from items
   const orderItems = items as Array<{ productId: string; quantity: number; unitPrice?: number }>;
   let total = 0;
@@ -289,17 +304,24 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
   );
 
   const transaction = db.transaction(() => {
+    // Validate every product and compute the total FIRST (no DB writes yet).
+    const resolvedItems: Array<{ productId: string; name: string; quantity: number; unitPrice: number }> = [];
     for (const item of orderItems) {
       const product = db.prepare("SELECT id, name, price FROM products WHERE id = ?").get(item.productId) as { id: string; name: string; price: number } | undefined;
       if (!product) throw new Error(`Product ${item.productId} not found`);
-
       const unitPrice = item.unitPrice ?? product.price;
       total += unitPrice * item.quantity;
-
-      insertItem.run(generateId(), id, product.id, product.name, item.quantity, unitPrice);
+      resolvedItems.push({ productId: product.id, name: product.name, quantity: item.quantity, unitPrice });
     }
 
+    // Insert the order row BEFORE its items: order_items.order_id has a FOREIGN
+    // KEY to orders(id), so the parent order must exist first or the item insert
+    // fails with "FOREIGN KEY constraint failed".
     insertOrder.run(id, tenantId, customerId, total, Number(deliveryFee) || 0, Number(tax) || 0, deliveryAddress, deliveryNotes || "");
+
+    for (const ri of resolvedItems) {
+      insertItem.run(generateId(), id, ri.productId, ri.name, ri.quantity, ri.unitPrice);
+    }
   });
 
   try {
