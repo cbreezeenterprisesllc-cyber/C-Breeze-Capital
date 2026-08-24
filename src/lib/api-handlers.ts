@@ -267,7 +267,7 @@ export function handleListOrders(url: URL): Response {
 
 // POST /api/orders
 export function handleCreateOrder(body: Record<string, unknown>): Response {
-  const { tenantId, customerId, items, deliveryAddress, deliveryNotes, deliveryFee, tax } = body as Record<string, unknown>;
+  const { tenantId, customerId, items, deliveryAddress, deliveryNotes, deliveryFee, tax, tip } = body as Record<string, unknown>;
 
   if (!tenantId || !customerId || !items || !deliveryAddress) {
     return error("tenantId, customerId, items, and deliveryAddress are required");
@@ -293,31 +293,37 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
   }
   // Calculate total from items
   const orderItems = items as Array<{ productId: string; quantity: number; unitPrice?: number }>;
-  let total = 0;
+  let subtotal = 0;
 
   const insertItem = db.prepare(
     "INSERT INTO order_items (id, order_id, product_id, product_name, quantity, unit_price) VALUES (?, ?, ?, ?, ?, ?)"
   );
 
   const insertOrder = db.prepare(
-    "INSERT INTO orders (id, tenant_id, customer_id, status, total, delivery_fee, tax, delivery_address, delivery_notes) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)"
+    "INSERT INTO orders (id, tenant_id, customer_id, status, total, delivery_fee, tax, tip_amount, delivery_address, delivery_notes) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)"
   );
 
   const transaction = db.transaction(() => {
-    // Validate every product and compute the total FIRST (no DB writes yet).
+    // Validate every product and compute the subtotal FIRST (no DB writes yet).
     const resolvedItems: Array<{ productId: string; name: string; quantity: number; unitPrice: number }> = [];
     for (const item of orderItems) {
       const product = db.prepare("SELECT id, name, price FROM products WHERE id = ?").get(item.productId) as { id: string; name: string; price: number } | undefined;
       if (!product) throw new Error(`Product ${item.productId} not found`);
       const unitPrice = item.unitPrice ?? product.price;
-      total += unitPrice * item.quantity;
+      subtotal += unitPrice * item.quantity;
       resolvedItems.push({ productId: product.id, name: product.name, quantity: item.quantity, unitPrice });
     }
+
+    // Grand total = subtotal + delivery_fee + tax + tip. orders.total is the amount
+    // the customer actually pays (also what Stripe is charged). Tip is kept 100% by
+    // the courier at settlement, so it lives on its own column as well.
+    const grandTotal =
+      subtotal + (Number(deliveryFee) || 0) + (Number(tax) || 0) + (Number(tip) || 0);
 
     // Insert the order row BEFORE its items: order_items.order_id has a FOREIGN
     // KEY to orders(id), so the parent order must exist first or the item insert
     // fails with "FOREIGN KEY constraint failed".
-    insertOrder.run(id, tenantId, customerId, total, Number(deliveryFee) || 0, Number(tax) || 0, deliveryAddress, deliveryNotes || "");
+    insertOrder.run(id, tenantId, customerId, grandTotal, Number(deliveryFee) || 0, Number(tax) || 0, Number(tip) || 0, deliveryAddress, deliveryNotes || "");
 
     for (const ri of resolvedItems) {
       insertItem.run(generateId(), id, ri.productId, ri.name, ri.quantity, ri.unitPrice);
@@ -503,7 +509,7 @@ export function handleListAvailableOrders(
     if (o.t_lat == null || o.t_lng == null) return null;
     const dist = havMiles(lat, lng, o.t_lat, o.t_lng);
     if (dist > radius) return null;
-    return { id: o.id, status: o.status, total: o.total, delivery_fee: o.delivery_fee, delivery_address: o.delivery_address, customer_name: o.customer_name ?? null, dispensary: o.dispensary, distance_mi: Math.round(dist * 10) / 10, tenant_id: o.tenant_id };
+    return { id: o.id, status: o.status, total: o.total, delivery_fee: o.delivery_fee, tip_amount: o.tip_amount, delivery_address: o.delivery_address, customer_name: o.customer_name ?? null, dispensary: o.dispensary, distance_mi: Math.round(dist * 10) / 10, tenant_id: o.tenant_id };
   }).filter(Boolean);
   return json({ success: true, data });
 }
@@ -771,7 +777,14 @@ export async function handleCreateCheckoutSession(body: Record<string, unknown>)
   if (!stripe) return error("Payments not configured", 500);
 
   try {
-    const amountInCents = Math.round(parseFloat(total) * 100);
+    // Charge the authoritative stored order total (subtotal + delivery + tax + tip)
+    // rather than trusting the client-supplied total, so the Stripe amount always
+    // matches the order record even if tip/pricing changes between rendering and pay.
+    const db = getDb();
+    const order = db.prepare("SELECT total FROM orders WHERE id = ?").get(orderId) as { total: number } | undefined;
+    const amountInCents = order?.total != null
+      ? Math.round(Number(order.total) * 100)
+      : Math.round(parseFloat(total) * 100);
     const session = await createCheckoutSession({
       orderId,
       amount: amountInCents,

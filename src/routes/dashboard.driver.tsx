@@ -19,6 +19,7 @@ type Order = {
   total: number;
   delivery_fee: number | null;
   tax: number | null;
+  tip_amount: number | null;
   delivery_address: string;
   delivery_notes: string;
   driver_id: string | null;
@@ -307,6 +308,21 @@ function DeliveriesTab() {
         <Link to="/dashboard/driver"><Button variant="ghost" size="sm" onClick={async () => { await chatLogin("driver"); setOrders([]); load(); }}>Refresh</Button></Link>
       </div>
 
+      {done.length > 0 && (
+        <Card>
+          <div className="p-4 flex flex-wrap items-center gap-x-10 gap-y-2">
+            <div>
+              <p className="text-xs text-[var(--color-neutral-500)]">Completed deliveries</p>
+              <p className="text-2xl font-bold">{done.length}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[var(--color-neutral-500)]">Tips earned <span className="text-[var(--color-primary-700)]">(100% yours)</span></p>
+              <p className="text-2xl font-bold text-[var(--color-primary-700)]">${done.reduce((s, o) => s + (Number(o.tip_amount) || 0), 0).toFixed(2)}</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {active.length === 0 && !loading && (
         <Card><div className="p-6 text-center text-sm text-[var(--color-neutral-500)]">No active deliveries right now.</div></Card>
       )}
@@ -342,6 +358,9 @@ function DeliveriesTab() {
                   <div>
                     <p className="font-medium">{o.customer_name || "Customer"} — {o.id.slice(0, 8)}</p>
                     <p className="text-xs text-[var(--color-neutral-500)]">{o.verified_at} · ID {o.id_document_type} ···{o.id_last_four} · {o.id_name}</p>
+                    {Number(o.tip_amount || 0) > 0 && (
+                      <p className="text-xs font-semibold text-[var(--color-primary-700)] mt-0.5">Tip earned: ${Number(o.tip_amount || 0).toFixed(2)}</p>
+                    )}
                   </div>
                   <Badge variant="success">Delivered</Badge>
                 </div>
@@ -366,6 +385,7 @@ type AvailOrder = {
   status: string;
   total: number;
   delivery_fee: number | null;
+  tip_amount: number | null;
   delivery_address: string;
   customer_name?: string;
   dispensary: string;
@@ -485,7 +505,7 @@ function AvailableOrdersTab() {
               <Badge variant="primary">{o.distance_mi.toFixed(1)} mi away</Badge>
             </div>
             <div className="flex items-center justify-between border-t border-[var(--color-neutral-100)] pt-3">
-              <span className="text-sm font-medium">${o.total.toFixed(2)} <span className="text-xs text-[var(--color-neutral-400)]">+ ${(o.delivery_fee || 0).toFixed(2)} delivery</span></span>
+              <span className="text-sm font-medium">${o.total.toFixed(2)}{Number(o.tip_amount || 0) > 0 ? <span className="text-xs text-[var(--color-primary-700)]"> (incl ${Number(o.tip_amount || 0).toFixed(2)} tip)</span> : null}</span>
               <Button size="sm" onClick={() => claim(o.id)}>Claim</Button>
             </div>
           </div>

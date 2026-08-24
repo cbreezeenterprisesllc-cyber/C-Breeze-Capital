@@ -275,15 +275,18 @@ function initSchema(db: Database) {
     "ALTER TABLE orders ADD COLUMN signature TEXT",
     "ALTER TABLE orders ADD COLUMN verified_by TEXT",
     "ALTER TABLE orders ADD COLUMN verified_at TEXT",
+    // Driver identity verification (start-of-delivery selfie) + reference selfie on file
+    "ALTER TABLE users ADD COLUMN reference_selfie TEXT",
+    "ALTER TABLE orders ADD COLUMN start_selfie TEXT",
+    "ALTER TABLE orders ADD COLUMN started_at TEXT",
     // Real dispatch: dispensary coordinates + driver location (proximity dispatch)
     "ALTER TABLE tenants ADD COLUMN lat REAL",
     "ALTER TABLE tenants ADD COLUMN lng REAL",
     "ALTER TABLE users ADD COLUMN current_lat REAL",
     "ALTER TABLE users ADD COLUMN current_lng REAL",
-    // Driver identity verification (start-of-delivery selfie) + reference selfie on file
-    "ALTER TABLE users ADD COLUMN reference_selfie TEXT",
-    "ALTER TABLE orders ADD COLUMN start_selfie TEXT",
-    "ALTER TABLE orders ADD COLUMN started_at TEXT",
+    // Tips at checkout — tip_amount is the portion the courier keeps 100% of.
+    // orders.total is the grand total (subtotal + delivery_fee + tax + tip_amount).
+    "ALTER TABLE orders ADD COLUMN tip_amount REAL DEFAULT 0",
   ]) {
     try { db.run(statement); } catch { /* column already exists */ }
   }
