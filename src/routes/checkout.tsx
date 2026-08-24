@@ -16,14 +16,18 @@ export const Route = createFileRoute("/checkout")({
 
 function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, subtotal, tenantId, clearCart } = useCart();
+  const { items, subtotal, tenantId, tenantName, clearCart } = useCart();
 
   const [showAgeModal, setShowAgeModal] = useState(true);
   const [ageVerified, setAgeVerified] = useState(false);
   const [ageError, setAgeError] = useState("");
   const [birthDate, setBirthDate] = useState("");
+  // Fulfillment: delivery (courier) / pickup (at store) / curbside (bring it to my car).
+  const [fulfillment, setFulfillment] = useState<"delivery" | "pickup" | "curbside">("delivery");
   const [address, setAddress] = useState("");
   const [deliveryNotes, setDeliveryNotes] = useState("");
+  const [pickupNotes, setPickupNotes] = useState("");
+  const [pickupVehicle, setPickupVehicle] = useState("");
   const [placing, setPlacing] = useState(false);
   const [orderResult, setOrderResult] = useState<{ success: boolean; orderId?: string; error?: string } | null>(null);
 
@@ -32,7 +36,9 @@ function CheckoutPage() {
   const [tipPercent, setTipPercent] = useState(0); // 0 = none
   const [customTip, setCustomTip] = useState("");
 
-  const deliveryFee = subtotal > 50 ? 0 : 5.99;
+  const isPickup = fulfillment !== "delivery";
+  // Delivery fee is waived for pickup and curbside (no courier is used).
+  const deliveryFee = isPickup ? 0 : subtotal > 50 ? 0 : 5.99;
   const tax = subtotal * 0.08;
   const tipAmount =
     customTip !== "" ? Math.max(0, Number(customTip) || 0)
@@ -59,11 +65,14 @@ function CheckoutPage() {
   };
 
   const handlePlaceOrder = async () => {
-    if (!address.trim()) return;
     if (!tenantId || items.length === 0) return;
+    if (fulfillment === "delivery" && !address.trim()) return;
     setPlacing(true);
     try {
       const customerId = "anon-" + Date.now();
+      // delivery_address is NOT NULL; for pickup/curbside store the store name so the
+      // row stays valid — the customer is coming to the dispensary instead.
+      const resolvedAddress = isPickup && address.trim() === "" ? `${tenantName} (${fulfillment})` : address;
       const res = await apiFetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -74,8 +83,11 @@ function CheckoutPage() {
             productId: i.productId,
             quantity: i.quantity,
           })),
-          deliveryAddress: address,
+          fulfillmentType: fulfillment,
+          deliveryAddress: resolvedAddress,
           deliveryNotes,
+          pickupNotes,
+          pickupVehicle,
           deliveryFee,
           tax,
           tip: tipAmount,
@@ -194,28 +206,66 @@ function CheckoutPage() {
         </h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Delivery Details */}
+          {/* Fulfillment — delivery, pickup, or curbside */}
           <div className="lg:col-span-2 space-y-6">
             <Card padding="lg">
               <CardHeader>
                 <h2 className="text-[var(--text-h4)] font-[var(--font-heading)] text-[var(--color-neutral-800)] flex items-center gap-2">
-                  <Icon name="car" size={18} /> Delivery Details
+                  <Icon name="shop" size={18} /> How would you like your order?
                 </h2>
               </CardHeader>
-              <CardBody className="space-y-4">
-                <Input
-                  label="Delivery Address"
-                  placeholder="123 Main St, Apt 4, City, State ZIP"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  error={!address && orderResult ? "Address is required" : ""}
-                />
-                <Input
-                  label="Delivery Notes (optional)"
-                  placeholder="Gate code, landmark, etc."
-                  value={deliveryNotes}
-                  onChange={(e) => setDeliveryNotes(e.target.value)}
-                />
+              <CardBody className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFulfillment("delivery")}
+                    className={`rounded-xl border-2 p-4 text-left transition-colors ${fulfillment === "delivery" ? "bg-[var(--color-primary-50)] border-[var(--color-primary-600)]" : "bg-white border-[var(--color-neutral-200)] hover:border-[var(--color-primary-400)]"}`}
+                  >
+                    <p className="font-semibold text-[var(--color-neutral-800)]">Delivery</p>
+                    <p className="text-xs text-[var(--color-neutral-500)] mt-1">Courier brings it to your door</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFulfillment("pickup")}
+                    className={`rounded-xl border-2 p-4 text-left transition-colors ${fulfillment === "pickup" ? "bg-[var(--color-primary-50)] border-[var(--color-primary-600)]" : "bg-white border-[var(--color-neutral-200)] hover:border-[var(--color-primary-400)]"}`}
+                  >
+                    <p className="font-semibold text-[var(--color-neutral-800)]">Pickup</p>
+                    <p className="text-xs text-[var(--color-neutral-500)] mt-1">Pick it up at the dispensary</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFulfillment("curbside")}
+                    className={`rounded-xl border-2 p-4 text-left transition-colors ${fulfillment === "curbside" ? "bg-[var(--color-primary-50)] border-[var(--color-primary-600)]" : "bg-white border-[var(--color-neutral-200)] hover:border-[var(--color-primary-400)]"}`}
+                  >
+                    <p className="font-semibold text-[var(--color-neutral-800)]">Curbside</p>
+                    <p className="text-xs text-[var(--color-neutral-500)] mt-1">We bring it to your car</p>
+                  </button>
+                </div>
+                {fulfillment === "delivery" && (
+                  <div className="space-y-4 animate-fade-in">
+                    <Input label="Delivery Address" placeholder="123 Main St, Apt 4, City, State ZIP" value={address} onChange={(e) => setAddress(e.target.value)} error={!address && orderResult ? "Address is required" : ""} />
+                    <Input label="Delivery Notes (optional)" placeholder="Gate code, landmark, etc." value={deliveryNotes} onChange={(e) => setDeliveryNotes(e.target.value)} />
+                  </div>
+                )}
+                {fulfillment === "pickup" && (
+                  <div className="space-y-4 animate-fade-in text-sm">
+                    <div className="rounded-lg bg-[var(--color-neutral-50)] border border-[var(--color-neutral-200)] p-4">
+                      <p className="font-semibold text-[var(--color-neutral-800)] mb-1">Pick up at {tenantName}</p>
+                      <p className="text-[var(--color-neutral-500)] leading-relaxed">Head to the dispensary counter with a valid government-issued ID. Your order will be ready once the store marks it ready.</p>
+                    </div>
+                    <Input label="Pickup Notes (optional)" placeholder="Contact name, preferred time, etc." value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} />
+                  </div>
+                )}
+                {fulfillment === "curbside" && (
+                  <div className="space-y-4 animate-fade-in text-sm">
+                    <div className="rounded-lg bg-[var(--color-neutral-50)] border border-[var(--color-neutral-200)] p-4">
+                      <p className="font-semibold text-[var(--color-neutral-800)] mb-1">Curbside at {tenantName}</p>
+                      <p className="text-[var(--color-neutral-500)] leading-relaxed">Pull into a curbside spot and let us know you have arrived — we'll bring the order to your car. Have your ID ready.</p>
+                    </div>
+                    <Input label="Vehicle / Parking Spot" placeholder="e.g. White Toyota Camry, spot 4" value={pickupVehicle} onChange={(e) => setPickupVehicle(e.target.value)} />
+                    <Input label="Arrival / Pickup Notes (optional)" placeholder="Call when I'm out front" value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} />
+                  </div>
+                )}
               </CardBody>
             </Card>
 
@@ -245,13 +295,13 @@ function CheckoutPage() {
             <Card padding="lg">
               <CardHeader>
                 <h2 className="text-[var(--text-h4)] font-[var(--font-heading)] text-[var(--color-neutral-800)] flex items-center gap-2">
-                  <Icon name="dollars" size={18} /> Driver Tip
+                  <Icon name="dollars" size={18} /> Tip
                 </h2>
               </CardHeader>
               <CardBody>
                 <p className="text-sm text-[var(--color-neutral-500)] mb-4">
-                  <strong className="text-[var(--color-neutral-700)]">100% of your tip goes to your driver.</strong>{" "}
-                  A thank-you for a quick, careful delivery.
+                  <strong className="text-[var(--color-neutral-700)]">{isPickup ? "100% of your tip goes to the store team." : "100% of your tip goes to your driver."}</strong>{" "}
+                  {isPickup ? "A thank-you for great service." : "A thank-you for a quick, careful delivery."}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {TIP_PRESETS.map((p) => {
@@ -317,7 +367,7 @@ function CheckoutPage() {
                     <span className="font-medium">${subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-[var(--color-neutral-500)]">Delivery</span>
+                    <span className="text-[var(--color-neutral-500)]">{isPickup ? "Delivery (Free)" : "Delivery"}</span>
                     <span className="font-medium">{deliveryFee === 0 ? <span className="text-[var(--color-success)] font-semibold">Free</span> : `${deliveryFee.toFixed(2)}`}</span>
                   </div>
                   <div className="flex justify-between text-sm">
@@ -325,7 +375,7 @@ function CheckoutPage() {
                     <span className="font-medium">${tax.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-[var(--color-neutral-500)]">Tip (100% to driver)</span>
+                    <span className="text-[var(--color-neutral-500)]">{isPickup ? "Tip (100% to store)" : "Tip (100% to driver)"}</span>
                     <span className="font-medium">{tipAmount > 0 ? `${tipAmount.toFixed(2)}` : <span className="text-[var(--color-neutral-400)]">—</span>}</span>
                   </div>
                   <div className="border-t border-[var(--color-neutral-200)] pt-3 flex justify-between">
@@ -346,7 +396,7 @@ function CheckoutPage() {
                   variant="neon"
                   onClick={handlePlaceOrder}
                   loading={placing}
-                  disabled={!ageVerified || !address.trim()}
+                  disabled={!ageVerified || (fulfillment === "delivery" && !address.trim())}
                   className="inline-flex items-center justify-center gap-2"
                 >
                   <Icon name="rocket" size={18} /> Place Order — ${total.toFixed(2)}

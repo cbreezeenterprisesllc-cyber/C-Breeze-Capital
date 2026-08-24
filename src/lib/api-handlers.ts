@@ -267,10 +267,14 @@ export function handleListOrders(url: URL): Response {
 
 // POST /api/orders
 export function handleCreateOrder(body: Record<string, unknown>): Response {
-  const { tenantId, customerId, items, deliveryAddress, deliveryNotes, deliveryFee, tax, tip } = body as Record<string, unknown>;
-
-  if (!tenantId || !customerId || !items || !deliveryAddress) {
-    return error("tenantId, customerId, items, and deliveryAddress are required");
+  const { tenantId, customerId, items, deliveryAddress, deliveryNotes, deliveryFee, tax, tip, fulfillmentType, pickupVehicle, pickupNotes } = body as Record<string, unknown>;
+  const fulfillment = (fulfillmentType === "pickup" || fulfillmentType === "curbside") ? fulfillmentType : "delivery";
+  // Delivery requires a delivery address; pickup/curbside customers come to the store instead.
+  if (!tenantId || !customerId || !items) {
+    return error("tenantId, customerId, and items are required");
+  }
+  if (fulfillment === "delivery" && !deliveryAddress) {
+    return error("A delivery address is required for delivery orders");
   }
 
   const db = getDb();
@@ -300,7 +304,7 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
   );
 
   const insertOrder = db.prepare(
-    "INSERT INTO orders (id, tenant_id, customer_id, status, total, delivery_fee, tax, tip_amount, delivery_address, delivery_notes) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO orders (id, tenant_id, customer_id, status, total, delivery_fee, tax, tip_amount, delivery_address, delivery_notes, fulfillment_type, pickup_vehicle, pickup_notes) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
 
   const transaction = db.transaction(() => {
@@ -323,7 +327,7 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
     // Insert the order row BEFORE its items: order_items.order_id has a FOREIGN
     // KEY to orders(id), so the parent order must exist first or the item insert
     // fails with "FOREIGN KEY constraint failed".
-    insertOrder.run(id, tenantId, customerId, grandTotal, Number(deliveryFee) || 0, Number(tax) || 0, Number(tip) || 0, deliveryAddress, deliveryNotes || "");
+    insertOrder.run(id, tenantId, customerId, grandTotal, Number(deliveryFee) || 0, Number(tax) || 0, Number(tip) || 0, deliveryAddress, deliveryNotes || "", fulfillment, pickupVehicle || "", pickupNotes || "");
 
     for (const ri of resolvedItems) {
       insertItem.run(generateId(), id, ri.productId, ri.name, ri.quantity, ri.unitPrice);
@@ -503,7 +507,7 @@ export function handleListAvailableOrders(
   }
   if (!isFinite(lat) || !isFinite(lng)) return json({ success: true, data: [] });
   const open = db.prepare(
-    "SELECT o.*, t.name as dispensary, t.lat as t_lat, t.lng as t_lng FROM orders o JOIN tenants t ON o.tenant_id = t.id WHERE o.driver_id IS NULL AND o.status IN ('pending','confirmed','preparing') ORDER BY o.created_at DESC LIMIT 50"
+    "SELECT o.*, t.name as dispensary, t.lat as t_lat, t.lng as t_lng FROM orders o JOIN tenants t ON o.tenant_id = t.id WHERE o.driver_id IS NULL AND o.status IN ('pending','confirmed','preparing') AND (o.fulfillment_type IS NULL OR o.fulfillment_type = 'delivery') ORDER BY o.created_at DESC LIMIT 50"
   ).all();
   const data = open.map((o: any) => {
     if (o.t_lat == null || o.t_lng == null) return null;

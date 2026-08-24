@@ -179,13 +179,19 @@ function TrackOrder() {
                 <span className="font-medium">{order.customer_name}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-[var(--color-neutral-500)]">Delivery Address</span>
-                <span className="font-medium text-right max-w-[200px]">{order.delivery_address}</span>
+                <span className="text-[var(--color-neutral-500)]">{order.fulfillment_type === "curbside" ? "Curbside at" : order.fulfillment_type === "pickup" ? "Pick up at" : "Delivery Address"}</span>
+                <span className="font-medium text-right max-w-[200px]">{order.delivery_address}{order.fulfillment_type === "curbside" && order.pickup_vehicle ? ` • ${order.pickup_vehicle}` : ""}</span>
               </div>
               {order.delivery_notes && (
                 <div className="flex justify-between text-sm">
                   <span className="text-[var(--color-neutral-500)]">Notes</span>
                   <span className="italic text-[var(--color-neutral-600)]">{order.delivery_notes}</span>
+                </div>
+              )}
+              {(order.fulfillment_type === "pickup" || order.fulfillment_type === "curbside") && order.pickup_notes && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--color-neutral-500)]">Arrival / pickup notes</span>
+                  <span className="italic text-[var(--color-neutral-600)]">{order.pickup_notes}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm">
@@ -202,7 +208,7 @@ function TrackOrder() {
               </div>
               {(order.tip_amount || 0) > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-[var(--color-neutral-500)]">Tip (100% to driver)</span>
+                  <span className="text-[var(--color-neutral-500)]">{order.fulfillment_type === "pickup" || order.fulfillment_type === "curbside" ? "Tip (100% to store)" : "Tip (100% to driver)"}</span>
                   <span className="font-medium">${(order.tip_amount || 0).toFixed(2)}</span>
                 </div>
               )}
