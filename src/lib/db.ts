@@ -287,6 +287,12 @@ function initSchema(db: Database) {
     // Tips at checkout — tip_amount is the portion the courier keeps 100% of.
     // orders.total is the grand total (subtotal + delivery_fee + tax + tip_amount).
     "ALTER TABLE orders ADD COLUMN tip_amount REAL DEFAULT 0",
+    // Pickup / curbside fulfillment — fulfillment_type: delivery|pickup|curbside.
+    // pickup_vehicle is the customer's car description for curbside; pickup_notes
+    // is optional parking / instruction text. delivery_fee is waived for these.
+    "ALTER TABLE orders ADD COLUMN fulfillment_type TEXT DEFAULT 'delivery'",
+    "ALTER TABLE orders ADD COLUMN pickup_vehicle TEXT DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN pickup_notes TEXT DEFAULT ''",
   ]) {
     try { db.run(statement); } catch { /* column already exists */ }
   }

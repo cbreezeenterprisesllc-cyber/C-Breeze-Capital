@@ -39,10 +39,22 @@ type Order = {
   verified_by?: string;
   verified_at?: string;
   signature?: string;
+  fulfillment_type?: string;
+  pickup_vehicle?: string;
+  pickup_notes?: string;
 };
 
 const FLOW = ["pending", "confirmed", "preparing", "in_transit", "delivered"];
-const NEXT: Record<string, string> = { pending: "confirmed", confirmed: "preparing", preparing: "in_transit" };
+const isPickupOrder = (o: Order) => o.fulfillment_type === "pickup" || o.fulfillment_type === "curbside";
+// Fulfillment-aware next status: pickup/curbside skip the courier leg (in_transit)
+// and go straight from preparing (ready) to delivered (picked up).
+function nextFor(o: Order): string | undefined {
+  const { status } = o;
+  if (status === "pending") return "confirmed";
+  if (status === "confirmed") return "preparing";
+  if (status === "preparing") return isPickupOrder(o) ? "delivered" : "in_transit";
+  return undefined;
+}
 const statusColors: Record<string, "neutral" | "primary" | "warning" | "info" | "success" | "error"> = {
   pending: "neutral", confirmed: "primary", preparing: "warning", assigned: "info",
   in_transit: "info", delivered: "success", cancelled: "error",
@@ -141,6 +153,7 @@ function OrdersPage() {
             <tr className="text-left bg-[var(--color-neutral-100)] text-[var(--color-neutral-600)]">
               <th className="p-4 font-medium">#</th>
               <th className="p-4 font-medium">Customer</th>
+              <th className="p-4 font-medium">Type</th>
               <th className="p-4 font-medium">Items</th>
               <th className="p-4 font-medium">Total</th>
               <th className="p-4 font-medium">Status</th>
@@ -149,18 +162,19 @@ function OrdersPage() {
           </thead>
           <tbody>
             {filtered.map((o) => {
-              const next = NEXT[o.status];
+              const next = nextFor(o); const pickup = isPickupOrder(o);
               return (
                 <tr key={o.id} className="border-t border-[var(--color-neutral-200)] hover:bg-[var(--color-neutral-50)] cursor-pointer" onClick={() => setSelected(o)}>
                   <td className="p-4 font-medium">{o.id.slice(0, 8)}</td>
                   <td className="p-4">{o.customer_name || "—"}</td>
+                  <td className="p-4"><Badge variant={pickup ? "warning" : "neutral"} size="sm">{pickup ? (o.fulfillment_type === "curbside" ? "Curbside" : "Pickup") : "Delivery"}</Badge></td>
                   <td className="p-4">{o.item_count ?? "—"}</td>
                   <td className="p-4 font-medium">${Number(o.total || 0).toFixed(2)}</td>
                   <td className="p-4"><Badge variant={statusColors[o.status] || "neutral"} size="sm">{o.status}</Badge></td>
                   <td className="p-4" onClick={(e) => e.stopPropagation()}>
                     {next ? (
                       <Button size="sm" variant="secondary" disabled={busy} onClick={() => advance(o, next)}>
-                        {o.status === "preparing" ? "Hand to driver" : `Mark ${next}`}
+                        {o.status === "preparing" ? (pickup ? "Mark Picked Up" : "Hand to driver") : next ? `Mark ${next}` : ""}
                       </Button>
                     ) : o.status === "in_transit" ? (
                       <span className="text-xs text-[var(--color-neutral-500)]">Awaiting driver (ID + signature)</span>
@@ -186,13 +200,13 @@ function OrdersPage() {
             <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
               <div><p className="text-[var(--color-neutral-500)]">Customer</p><p className="font-medium">{cur.customer_name || "—"}</p></div>
               <div><p className="text-[var(--color-neutral-500)]">Items</p><p className="font-medium">{cur.item_count ?? "—"}</p></div>
-              <div className="col-span-2"><p className="text-[var(--color-neutral-500)]">Delivery address</p><p className="font-medium">{cur.delivery_address || "—"}</p></div>
+              <div className="col-span-2"><p className="text-[var(--color-neutral-500)]">{isPickupOrder(cur) ? "Location / instructions" : "Delivery address"}</p><p className="font-medium">{cur.delivery_address || "—"}{isPickupOrder(cur) && (cur.pickup_vehicle ? ` • ${cur.pickup_vehicle}` : "")}</p></div>
             </div>
             <div className="border-t border-[var(--color-neutral-200)] pt-3 space-y-1 text-sm">
               <div className="flex justify-between"><span className="text-[var(--color-neutral-500)]">Delivery fee</span><span>${Number(cur.delivery_fee || 0).toFixed(2)}</span></div>
               <div className="flex justify-between"><span className="text-[var(--color-neutral-500)]">Tax</span><span>${Number(cur.tax || 0).toFixed(2)}</span></div>
               {Number(cur.tip_amount || 0) > 0 && (
-                <div className="flex justify-between"><span className="text-[var(--color-neutral-500)]">Tip (100% to driver)</span><span className="text-[var(--color-primary-700)] font-medium">${Number(cur.tip_amount || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-[var(--color-neutral-500)]">{isPickupOrder(cur) ? "Tip (100% to store)" : "Tip (100% to driver)"}</span><span className="text-[var(--color-primary-700)] font-medium">${Number(cur.tip_amount || 0).toFixed(2)}</span></div>
               )}
               <div className="flex justify-between font-bold text-base"><span>Total</span><span>${Number(cur.total || 0).toFixed(2)}</span></div>
             </div>
@@ -240,9 +254,9 @@ function OrdersPage() {
 
             <CardFooter>
               <div className="flex gap-3">
-                {NEXT[cur.status] && (
-                  <Button size="sm" variant="secondary" disabled={busy} onClick={() => { advance(cur, NEXT[cur.status]); setSelected(null); }}>
-                    {cur.status === "preparing" ? "Hand to driver" : `Mark ${NEXT[cur.status]}`}
+                {nextFor(cur) && (
+                  <Button size="sm" variant="secondary" disabled={busy} onClick={() => { advance(cur, nextFor(cur)!); setSelected(null); }}>
+                    {cur.status === "preparing" ? (isPickupOrder(cur) ? "Mark Picked Up" : "Hand to driver") : `Mark ${nextFor(cur)}`}
                   </Button>
                 )}
                 {cur.status === "in_transit" && (
