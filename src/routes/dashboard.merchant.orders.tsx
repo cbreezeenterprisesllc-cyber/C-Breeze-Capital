@@ -25,6 +25,8 @@ type Order = {
   customer_name?: string;
   total: number;
   delivery_fee?: number;
+  tax?: number;
+  tip_amount?: number;
   delivery_address?: string;
   status: string;
   created_at?: string;
@@ -188,6 +190,10 @@ function OrdersPage() {
             </div>
             <div className="border-t border-[var(--color-neutral-200)] pt-3 space-y-1 text-sm">
               <div className="flex justify-between"><span className="text-[var(--color-neutral-500)]">Delivery fee</span><span>${Number(cur.delivery_fee || 0).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-[var(--color-neutral-500)]">Tax</span><span>${Number(cur.tax || 0).toFixed(2)}</span></div>
+              {Number(cur.tip_amount || 0) > 0 && (
+                <div className="flex justify-between"><span className="text-[var(--color-neutral-500)]">Tip (100% to driver)</span><span className="text-[var(--color-primary-700)] font-medium">${Number(cur.tip_amount || 0).toFixed(2)}</span></div>
+              )}
               <div className="flex justify-between font-bold text-base"><span>Total</span><span>${Number(cur.total || 0).toFixed(2)}</span></div>
             </div>
 

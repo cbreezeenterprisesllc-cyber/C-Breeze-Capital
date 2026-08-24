@@ -190,7 +190,7 @@ function TrackOrder() {
               )}
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--color-neutral-500)]">Subtotal</span>
-                <span className="font-medium">${(order.total - (order.tax || 0) - (order.delivery_fee || 0)).toFixed(2)}</span>
+                <span className="font-medium">${(order.total - (order.tax || 0) - (order.delivery_fee || 0) - (order.tip_amount || 0)).toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--color-neutral-500)]">Delivery Fee</span>
@@ -200,6 +200,12 @@ function TrackOrder() {
                 <span className="text-[var(--color-neutral-500)]">Tax</span>
                 <span className="font-medium">${(order.tax || 0).toFixed(2)}</span>
               </div>
+              {(order.tip_amount || 0) > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--color-neutral-500)]">Tip (100% to driver)</span>
+                  <span className="font-medium">${(order.tip_amount || 0).toFixed(2)}</span>
+                </div>
+              )}
               <div className="border-t border-[var(--color-neutral-200)] pt-3 flex justify-between">
                 <span className="font-bold">Total</span>
                 <span className="font-bold text-lg gradient-text-green">${order.total.toFixed(2)}</span>

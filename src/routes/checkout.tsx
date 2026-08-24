@@ -27,9 +27,17 @@ function CheckoutPage() {
   const [placing, setPlacing] = useState(false);
   const [orderResult, setOrderResult] = useState<{ success: boolean; orderId?: string; error?: string } | null>(null);
 
+  // Driver tip — drivers keep 100% of tips, so this is genuinely passed through.
+  const TIP_PRESETS = [10, 15, 20, 25];
+  const [tipPercent, setTipPercent] = useState(0); // 0 = none
+  const [customTip, setCustomTip] = useState("");
+
   const deliveryFee = subtotal > 50 ? 0 : 5.99;
   const tax = subtotal * 0.08;
-  const total = subtotal + deliveryFee + tax;
+  const tipAmount =
+    customTip !== "" ? Math.max(0, Number(customTip) || 0)
+    : Math.round(subtotal * (tipPercent / 100) * 100) / 100;
+  const total = subtotal + deliveryFee + tax + tipAmount;
 
   const handleAgeVerify = () => {
     if (!birthDate) {
@@ -70,6 +78,7 @@ function CheckoutPage() {
           deliveryNotes,
           deliveryFee,
           tax,
+          tip: tipAmount,
         }),
       });
       const data = await res.json();
@@ -231,6 +240,66 @@ function CheckoutPage() {
                 </div>
               </CardBody>
             </Card>
+
+            {/* Driver Tip */}
+            <Card padding="lg">
+              <CardHeader>
+                <h2 className="text-[var(--text-h4)] font-[var(--font-heading)] text-[var(--color-neutral-800)] flex items-center gap-2">
+                  <Icon name="dollars" size={18} /> Driver Tip
+                </h2>
+              </CardHeader>
+              <CardBody>
+                <p className="text-sm text-[var(--color-neutral-500)] mb-4">
+                  <strong className="text-[var(--color-neutral-700)]">100% of your tip goes to your driver.</strong>{" "}
+                  A thank-you for a quick, careful delivery.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {TIP_PRESETS.map((p) => {
+                    const active = customTip === "" && tipPercent === p;
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => { setTipPercent(p); setCustomTip(""); }}
+                        className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+                          active
+                            ? "bg-[var(--color-primary-600)] text-white border-[var(--color-primary-600)]"
+                            : "bg-white text-[var(--color-neutral-700)] border-[var(--color-neutral-300)] hover:border-[var(--color-primary-400)]"
+                        }`}
+                      >
+                        {p}%
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => { setTipPercent(0); setCustomTip(""); }}
+                    className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+                      customTip === "" && tipPercent === 0
+                        ? "bg-[var(--color-neutral-700)] text-white border-[var(--color-neutral-700)]"
+                        : "bg-white text-[var(--color-neutral-700)] border-[var(--color-neutral-300)] hover:border-[var(--color-primary-400)]"
+                    }`}
+                  >
+                    No tip
+                  </button>
+                </div>
+                <div className="mt-4 flex items-center gap-2">
+                  <span className="text-sm text-[var(--color-neutral-500)]">Or custom amount:</span>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-neutral-400)]">$</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={customTip}
+                      onChange={(e) => { setCustomTip(e.target.value); setTipPercent(0); }}
+                      className="pl-7 w-32"
+                    />
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
           </div>
 
           {/* Summary */}
@@ -254,6 +323,10 @@ function CheckoutPage() {
                   <div className="flex justify-between text-sm">
                     <span className="text-[var(--color-neutral-500)]">Tax</span>
                     <span className="font-medium">${tax.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[var(--color-neutral-500)]">Tip (100% to driver)</span>
+                    <span className="font-medium">{tipAmount > 0 ? `${tipAmount.toFixed(2)}` : <span className="text-[var(--color-neutral-400)]">—</span>}</span>
                   </div>
                   <div className="border-t border-[var(--color-neutral-200)] pt-3 flex justify-between">
                     <span className="font-bold text-lg">Total</span>
