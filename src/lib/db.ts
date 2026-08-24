@@ -293,6 +293,11 @@ function initSchema(db: Database) {
     "ALTER TABLE orders ADD COLUMN fulfillment_type TEXT DEFAULT 'delivery'",
     "ALTER TABLE orders ADD COLUMN pickup_vehicle TEXT DEFAULT ''",
     "ALTER TABLE orders ADD COLUMN pickup_notes TEXT DEFAULT ''",
+    // Scheduled delivery/pickup — scheduled_delivery_at (ISO) is the start of the
+    // customer-chosen window; NULL means "as soon as possible" (immediate).
+    "ALTER TABLE orders ADD COLUMN scheduled_delivery_at TEXT",
+    // Per-tenant scheduling config — JSON: { enabled, windowMinutes, leadMinutes, daysAhead }.
+    "ALTER TABLE tenants ADD COLUMN delivery_config TEXT DEFAULT '{}'",
   ]) {
     try { db.run(statement); } catch { /* column already exists */ }
   }

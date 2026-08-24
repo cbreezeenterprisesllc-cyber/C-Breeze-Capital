@@ -7,6 +7,7 @@ import { Card, CardHeader, CardBody } from "~/components/Card";
 import { Icon } from "~/components/Icon";
 import { ChatWidget } from "~/components/ChatWidget";
 import { SiteFooter } from "~/components/SiteFooter";
+import { formatScheduledLabel } from "~/lib/delivery-windows";
 
 export const Route = createFileRoute("/orders/$id/track")({
   component: TrackOrder,
@@ -182,6 +183,12 @@ function TrackOrder() {
                 <span className="text-[var(--color-neutral-500)]">{order.fulfillment_type === "curbside" ? "Curbside at" : order.fulfillment_type === "pickup" ? "Pick up at" : "Delivery Address"}</span>
                 <span className="font-medium text-right max-w-[200px]">{order.delivery_address}{order.fulfillment_type === "curbside" && order.pickup_vehicle ? ` • ${order.pickup_vehicle}` : ""}</span>
               </div>
+              {formatScheduledLabel(order.scheduled_delivery_at) && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--color-neutral-500)]">{order.fulfillment_type === "pickup" || order.fulfillment_type === "curbside" ? "Scheduled pickup" : "Scheduled delivery"}</span>
+                  <span className="font-medium text-[var(--color-primary-700)]">{formatScheduledLabel(order.scheduled_delivery_at)}</span>
+                </div>
+              )}
               {order.delivery_notes && (
                 <div className="flex justify-between text-sm">
                   <span className="text-[var(--color-neutral-500)]">Notes</span>

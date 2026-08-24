@@ -1,6 +1,7 @@
 import { getDb } from "~/lib/db";
 import { hashPassword, verifyPassword, generateToken, generateId } from "~/lib/auth";
 import { sanitizeHours } from "~/lib/store-hours";
+import { computeWindows, parseDeliveryConfig, sanitizeDeliveryConfig } from "~/lib/delivery-windows";
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -164,6 +165,39 @@ export function handleUpdateTenantHours(
   const updated = db.prepare("SELECT * FROM tenants WHERE id = ?").get(tenant.id);
   return json({ success: true, data: updated });
 }
+// GET /api/tenants/:id/delivery-windows — public. Returns the tenant's scheduling
+// config plus the concrete, currently-available windows (computed within the
+// store's operating hours). Checkout calls this to render the time picker.
+export function handleGetDeliveryWindows(id: string): Response {
+  const db = getDb();
+  const tenant = db
+    .prepare("SELECT id, hours, delivery_config FROM tenants WHERE slug = ? OR id = ?")
+    .get(id, id) as { id: string; hours: string; delivery_config: string } | undefined;
+  if (!tenant) return error("Tenant not found", 404);
+  const config = parseDeliveryConfig(tenant.delivery_config);
+  const windows = computeWindows(sanitizeHours(JSON.parse(tenant.hours || "{}")), config);
+  return json({ success: true, data: { enabled: config.enabled, config, windows } });
+}
+// PUT /api/tenants/:id/delivery-config — merchant sets its scheduling policy.
+// Body: { deliveryConfig: { enabled, windowMinutes, leadMinutes, daysAhead } }
+export function handleUpdateTenantDeliveryConfig(
+  id: string,
+  body: Record<string, unknown>,
+  auth: { role: string; tenantId?: string } | null,
+): Response {
+  if (!auth) return error("Unauthorized", 401);
+  const db = getDb();
+  const tenant = db
+    .prepare("SELECT id FROM tenants WHERE slug = ? OR id = ?")
+    .get(id, id) as { id: string } | undefined;
+  if (!tenant) return error("Tenant not found", 404);
+  if (auth.role === "merchant" && auth.tenantId && auth.tenantId !== tenant.id) {
+    return error("Forbidden", 403);
+  }
+  const config = sanitizeDeliveryConfig(body.deliveryConfig ?? body);
+  db.prepare("UPDATE tenants SET delivery_config = ? WHERE id = ?").run(JSON.stringify(config), tenant.id);
+  return json({ success: true, data: config });
+}
 
 // GET /api/products?tenantId=xxx
 export function handleListProducts(url: URL): Response {
@@ -267,7 +301,14 @@ export function handleListOrders(url: URL): Response {
 
 // POST /api/orders
 export function handleCreateOrder(body: Record<string, unknown>): Response {
-  const { tenantId, customerId, items, deliveryAddress, deliveryNotes, deliveryFee, tax, tip, fulfillmentType, pickupVehicle, pickupNotes } = body as Record<string, unknown>;
+  const { tenantId, customerId, items, deliveryAddress, deliveryNotes, deliveryFee, tax, tip, fulfillmentType, pickupVehicle, pickupNotes, scheduledDeliveryAt } = body as Record<string, unknown>;
+  // scheduledDeliveryAt is the customer-chosen delivery/pickup window start (ISO).
+  // It must be a valid, future timestamp; anything else falls back to immediate.
+  let scheduledAt: string | null = null;
+  if (scheduledDeliveryAt) {
+    const t = new Date(String(scheduledDeliveryAt)).getTime();
+    if (Number.isFinite(t) && t > Date.now()) scheduledAt = String(scheduledDeliveryAt);
+  }
   const fulfillment = (fulfillmentType === "pickup" || fulfillmentType === "curbside") ? fulfillmentType : "delivery";
   // Delivery requires a delivery address; pickup/curbside customers come to the store instead.
   if (!tenantId || !customerId || !items) {
@@ -304,7 +345,7 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
   );
 
   const insertOrder = db.prepare(
-    "INSERT INTO orders (id, tenant_id, customer_id, status, total, delivery_fee, tax, tip_amount, delivery_address, delivery_notes, fulfillment_type, pickup_vehicle, pickup_notes) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO orders (id, tenant_id, customer_id, status, total, delivery_fee, tax, tip_amount, delivery_address, delivery_notes, fulfillment_type, pickup_vehicle, pickup_notes, scheduled_delivery_at) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
 
   const transaction = db.transaction(() => {
@@ -327,7 +368,7 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
     // Insert the order row BEFORE its items: order_items.order_id has a FOREIGN
     // KEY to orders(id), so the parent order must exist first or the item insert
     // fails with "FOREIGN KEY constraint failed".
-    insertOrder.run(id, tenantId, customerId, grandTotal, Number(deliveryFee) || 0, Number(tax) || 0, Number(tip) || 0, deliveryAddress, deliveryNotes || "", fulfillment, pickupVehicle || "", pickupNotes || "");
+    insertOrder.run(id, tenantId, customerId, grandTotal, Number(deliveryFee) || 0, Number(tax) || 0, Number(tip) || 0, deliveryAddress, deliveryNotes || "", fulfillment, pickupVehicle || "", pickupNotes || "", scheduledAt);
 
     for (const ri of resolvedItems) {
       insertItem.run(generateId(), id, ri.productId, ri.name, ri.quantity, ri.unitPrice);
@@ -511,9 +552,16 @@ export function handleListAvailableOrders(
   ).all();
   const data = open.map((o: any) => {
     if (o.t_lat == null || o.t_lng == null) return null;
+    // Scheduled orders only enter the driver queue once their window is near
+    // (within 30 min of the scheduled delivery/pickup time). A delivery booked
+    // for tomorrow is stored but not dispatchable yet.
+    if (o.scheduled_delivery_at) {
+      const t = new Date(o.scheduled_delivery_at).getTime();
+      if (Number.isFinite(t) && t - Date.now() > 30 * 60000) return null;
+    }
     const dist = havMiles(lat, lng, o.t_lat, o.t_lng);
     if (dist > radius) return null;
-    return { id: o.id, status: o.status, total: o.total, delivery_fee: o.delivery_fee, tip_amount: o.tip_amount, delivery_address: o.delivery_address, customer_name: o.customer_name ?? null, dispensary: o.dispensary, distance_mi: Math.round(dist * 10) / 10, tenant_id: o.tenant_id };
+    return { id: o.id, status: o.status, total: o.total, delivery_fee: o.delivery_fee, tip_amount: o.tip_amount, delivery_address: o.delivery_address, customer_name: o.customer_name ?? null, dispensary: o.dispensary, distance_mi: Math.round(dist * 10) / 10, tenant_id: o.tenant_id, scheduled_delivery_at: o.scheduled_delivery_at ?? null };
   }).filter(Boolean);
   return json({ success: true, data });
 }
