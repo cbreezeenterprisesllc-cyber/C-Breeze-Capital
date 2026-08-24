@@ -7,6 +7,7 @@ import { Modal } from "~/components/Modal";
 import { Icon } from "~/components/Icon";
 import { ChatInbox } from "~/components/ChatInbox";
 import { getChatToken, getChatUser, chatLogin, DEMO_ACCOUNTS } from "~/lib/chat-client";
+import { formatScheduledLabel } from "~/lib/delivery-windows";
 
 export const Route = createFileRoute("/dashboard/driver")({
   component: DriverPanel,
@@ -391,6 +392,7 @@ type AvailOrder = {
   dispensary: string;
   distance_mi: number;
   tenant_id: string;
+  scheduled_delivery_at?: string | null;
 };
 
 function AvailableOrdersTab() {
@@ -500,6 +502,9 @@ function AvailableOrdersTab() {
               <div className="min-w-0">
                 <p className="font-semibold truncate">{o.dispensary} — {o.id.slice(0, 8)}</p>
                 <p className="text-sm text-[var(--color-neutral-500)] truncate">{o.delivery_address}</p>
+                {formatScheduledLabel(o.scheduled_delivery_at) && (
+                  <p className="text-xs font-medium text-[var(--color-primary-700)]">Scheduled: {formatScheduledLabel(o.scheduled_delivery_at)}</p>
+                )}
                 {o.customer_name && <p className="text-xs text-[var(--color-neutral-500)]">{o.customer_name}</p>}
               </div>
               <Badge variant="primary">{o.distance_mi.toFixed(1)} mi away</Badge>

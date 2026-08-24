@@ -6,6 +6,7 @@ import { Badge } from "~/components/Badge";
 import { Modal } from "~/components/Modal";
 import { Icon } from "~/components/Icon";
 import { getChatToken, chatLogin, DEMO_ACCOUNTS } from "~/lib/chat-client";
+import { formatScheduledLabel } from "~/lib/delivery-windows";
 
 export const Route = createFileRoute("/dashboard/merchant/orders")({
   component: OrdersPage,
@@ -42,6 +43,7 @@ type Order = {
   fulfillment_type?: string;
   pickup_vehicle?: string;
   pickup_notes?: string;
+  scheduled_delivery_at?: string | null;
 };
 
 const FLOW = ["pending", "confirmed", "preparing", "in_transit", "delivered"];
@@ -200,6 +202,9 @@ function OrdersPage() {
             <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
               <div><p className="text-[var(--color-neutral-500)]">Customer</p><p className="font-medium">{cur.customer_name || "—"}</p></div>
               <div><p className="text-[var(--color-neutral-500)]">Items</p><p className="font-medium">{cur.item_count ?? "—"}</p></div>
+              {formatScheduledLabel(cur.scheduled_delivery_at) && (
+                <div className="col-span-2"><p className="text-[var(--color-neutral-500)]">{isPickupOrder(cur) ? "Scheduled pickup" : "Scheduled delivery"}</p><p className="font-medium text-[var(--color-primary-700)]">{formatScheduledLabel(cur.scheduled_delivery_at)}</p></div>
+              )}
               <div className="col-span-2"><p className="text-[var(--color-neutral-500)]">{isPickupOrder(cur) ? "Location / instructions" : "Delivery address"}</p><p className="font-medium">{cur.delivery_address || "—"}{isPickupOrder(cur) && (cur.pickup_vehicle ? ` • ${cur.pickup_vehicle}` : "")}</p></div>
             </div>
             <div className="border-t border-[var(--color-neutral-200)] pt-3 space-y-1 text-sm">

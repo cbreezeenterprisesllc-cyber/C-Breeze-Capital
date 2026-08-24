@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TopbarNav } from "~/components/Navigation";
 import { Button } from "~/components/Button";
 import { Card, CardHeader, CardBody, CardFooter } from "~/components/Card";
@@ -30,6 +30,29 @@ function CheckoutPage() {
   const [pickupVehicle, setPickupVehicle] = useState("");
   const [placing, setPlacing] = useState(false);
   const [orderResult, setOrderResult] = useState<{ success: boolean; orderId?: string; error?: string } | null>(null);
+  // Scheduled delivery / pickup — "asap" is the default; "schedule" lets the
+  // customer pick one of the store's schedulable windows (within operating hours).
+  const [scheduleType, setScheduleType] = useState<"asap" | "schedule">("asap");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [windows, setWindows] = useState<{ start: string; label: string }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!tenantId) return;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/tenants/${tenantId}/delivery-windows`);
+        const payload = await res.json();
+        if (!cancelled && payload.success && payload.data?.enabled) {
+          setWindows(payload.data.windows || []);
+          // Reset to ASAP if scheduling is disabled / no windows available.
+          if (!(payload.data.windows || []).length) setScheduleType("asap");
+        }
+      } catch {
+        /* scheduling unavailable — stay on ASAP */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tenantId]);
 
   // Driver tip — drivers keep 100% of tips, so this is genuinely passed through.
   const TIP_PRESETS = [10, 15, 20, 25];
@@ -67,6 +90,10 @@ function CheckoutPage() {
   const handlePlaceOrder = async () => {
     if (!tenantId || items.length === 0) return;
     if (fulfillment === "delivery" && !address.trim()) return;
+    if (scheduleType === "schedule" && !scheduledAt) {
+      setOrderResult({ success: false, error: "Please pick a delivery window." });
+      return;
+    }
     setPlacing(true);
     try {
       const customerId = "anon-" + Date.now();
@@ -88,6 +115,7 @@ function CheckoutPage() {
           deliveryNotes,
           pickupNotes,
           pickupVehicle,
+          scheduledDeliveryAt: scheduleType === "schedule" && scheduledAt ? scheduledAt : undefined,
           deliveryFee,
           tax,
           tip: tipAmount,
@@ -266,6 +294,56 @@ function CheckoutPage() {
                     <Input label="Arrival / Pickup Notes (optional)" placeholder="Call when I'm out front" value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} />
                   </div>
                 )}
+                {/* Schedule — only shown when the store offers schedulable windows */}
+                {windows.length > 0 && (
+                  <div className="space-y-3 animate-fade-in border-t border-[var(--color-neutral-200)] pt-5">
+                    <h3 className="text-sm font-semibold text-[var(--color-neutral-800)]">
+                      <Icon name="clock" size={16} className="inline mr-1" />
+                      {isPickup ? "When do you want to pick it up?" : "When should it arrive?"}
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => { setScheduleType("asap"); setScheduledAt(""); }}
+                        className={`rounded-xl border-2 p-3 text-left transition-colors ${scheduleType === "asap" ? "bg-[var(--color-primary-50)] border-[var(--color-primary-600)]" : "bg-white border-[var(--color-neutral-200)] hover:border-[var(--color-primary-400)]"}`}
+                      >
+                        <p className="font-semibold text-[var(--color-neutral-800)] text-sm">As soon as possible</p>
+                        <p className="text-xs text-[var(--color-neutral-500)] mt-0.5">{isPickup ? "Start prep right away" : "Fastest delivery"}</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScheduleType("schedule")}
+                        className={`rounded-xl border-2 p-3 text-left transition-colors ${scheduleType === "schedule" ? "bg-[var(--color-primary-50)] border-[var(--color-primary-600)]" : "bg-white border-[var(--color-neutral-200)] hover:border-[var(--color-primary-400)]"}`}
+                      >
+                        <p className="font-semibold text-[var(--color-neutral-800)] text-sm">Schedule for later</p>
+                        <p className="text-xs text-[var(--color-neutral-500)] mt-0.5">Pick a delivery window</p>
+                      </button>
+                    </div>
+                    {scheduleType === "schedule" && (
+                      <div className="flex flex-wrap gap-2 animate-scale-in">
+                        {windows.map((w) => (
+                          <button
+                            key={w.start}
+                            type="button"
+                            onClick={() => setScheduledAt(w.start)}
+                            className={`px-3 py-2 rounded-full text-sm font-semibold border transition-colors ${scheduledAt === w.start ? "bg-[var(--color-primary-600)] text-white border-[var(--color-primary-600)]" : "bg-white text-[var(--color-neutral-700)] border-[var(--color-neutral-300)] hover:border-[var(--color-primary-400)]"}`}
+                          >
+                            {w.label}
+                          </button>
+                        ))}
+                        {scheduledAt && (
+                          <button
+                            type="button"
+                            onClick={() => setScheduledAt("")}
+                            className="px-3 py-2 rounded-full text-sm font-medium text-[var(--color-neutral-500)] underline"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardBody>
             </Card>
 
@@ -396,7 +474,7 @@ function CheckoutPage() {
                   variant="neon"
                   onClick={handlePlaceOrder}
                   loading={placing}
-                  disabled={!ageVerified || (fulfillment === "delivery" && !address.trim())}
+                  disabled={!ageVerified || (fulfillment === "delivery" && !address.trim()) || (scheduleType === "schedule" && !scheduledAt)}
                   className="inline-flex items-center justify-center gap-2"
                 >
                   <Icon name="rocket" size={18} /> Place Order — ${total.toFixed(2)}

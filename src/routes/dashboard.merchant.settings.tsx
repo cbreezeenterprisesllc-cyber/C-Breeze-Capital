@@ -7,6 +7,7 @@ import { Icon } from "~/components/Icon";
 import { getChatToken, chatLogin, DEMO_ACCOUNTS } from "~/lib/chat-client";
 import { apiFetch } from "~/lib/api-config";
 import { DAY_KEYS, parseHours, type StoreHours, type DayKey } from "~/lib/store-hours";
+import { parseDeliveryConfig, type DeliveryConfig } from "~/lib/delivery-windows";
 
 export const Route = createFileRoute("/dashboard/merchant/settings")({
   component: MerchantSettingsPage,
@@ -60,6 +61,8 @@ function MerchantSettingsPage() {
 
   const [, setHours] = useState<StoreHours>({});
   const [edits, setEdits] = useState<Record<DayKey, DayEdit> | null>(null);
+  const [deliveryConfig, setDeliveryConfig] = useState<DeliveryConfig | null>(null);
+  const [savingConfig, setSavingConfig] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -78,6 +81,7 @@ function MerchantSettingsPage() {
       const hrs = parseHours(payload.data.hours as string | undefined);
       setHours(hrs);
       setEdits(toEdits(hrs));
+      setDeliveryConfig(parseDeliveryConfig(payload.data.delivery_config as string | undefined));
       setLoading(false);
     } catch {
       setError("Could not load store hours");
@@ -128,6 +132,25 @@ function MerchantSettingsPage() {
     }
   };
 
+  const saveDeliveryConfig = async () => {
+    if (!tenantId || !deliveryConfig) return;
+    setSavingConfig(true);
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/tenants/${tenantId}/delivery-config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ deliveryConfig }),
+      });
+      const json = await res.json();
+      if (!json.success) setError(json.error || "Could not save delivery settings");
+      else setDeliveryConfig(json.data);
+    } catch {
+      setError("Network error while saving delivery settings");
+    } finally {
+      setSavingConfig(false);
+    }
+  };
   const setAllClosed = (closed: boolean) => {
     if (!edits) return;
     setEdits((prev) => {
@@ -268,6 +291,73 @@ function MerchantSettingsPage() {
           </div>
         </CardFooter>
       </Card>
+        <Card padding="lg">
+          <CardHeader>
+            <h2 className="font-[var(--font-heading)] text-lg flex items-center gap-2">
+              <Icon name="clock" size={18} /> Scheduled delivery &amp; pickup
+            </h2>
+          </CardHeader>
+          <CardBody className="space-y-4">
+            <p className="text-sm text-[var(--color-neutral-500)]">
+              Offer customers the option to schedule a delivery or pickup window. Available
+              slots are generated automatically within the store hours you set above.
+            </p>
+            {deliveryConfig && (
+              <>
+                <label className="flex items-center gap-3 text-sm text-[var(--color-neutral-700)]">
+                  <input
+                    type="checkbox"
+                    checked={deliveryConfig.enabled}
+                    onChange={(ev) => setDeliveryConfig({ ...deliveryConfig, enabled: ev.target.checked })}
+                    className="accent-[var(--color-primary-600)]"
+                  />
+                  Allow customers to schedule a delivery / pickup window
+                </label>
+                {deliveryConfig.enabled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                    <div>
+                      <label className="block text-sm text-[var(--color-neutral-600)] mb-1">Window length</label>
+                      <select
+                        value={deliveryConfig.windowMinutes}
+                        onChange={(ev) => setDeliveryConfig({ ...deliveryConfig, windowMinutes: Number(ev.target.value) })}
+                        className="w-full px-3 py-2 rounded-lg border border-[var(--color-neutral-200)] text-sm"
+                      >
+                        {[30, 60, 90, 120].map((m) => <option key={m} value={m}>{m} min</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-[var(--color-neutral-600)] mb-1">Min. advance notice</label>
+                      <select
+                        value={deliveryConfig.leadMinutes}
+                        onChange={(ev) => setDeliveryConfig({ ...deliveryConfig, leadMinutes: Number(ev.target.value) })}
+                        className="w-full px-3 py-2 rounded-lg border border-[var(--color-neutral-200)] text-sm"
+                      >
+                        {[30, 60, 90, 120, 180].map((m) => <option key={m} value={m}>{m} min</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-[var(--color-neutral-600)] mb-1">Book up to</label>
+                      <select
+                        value={deliveryConfig.daysAhead}
+                        onChange={(ev) => setDeliveryConfig({ ...deliveryConfig, daysAhead: Number(ev.target.value) })}
+                        className="w-full px-3 py-2 rounded-lg border border-[var(--color-neutral-200)] text-sm"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7].map((d) => <option key={d} value={d}>{d} day{d > 1 ? "s" : ""}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </CardBody>
+          <CardFooter>
+            <div className="flex items-center justify-end">
+              <Button variant="neon" onClick={saveDeliveryConfig} disabled={savingConfig}>
+                {savingConfig ? "Saving…" : "Save delivery settings"}
+              </Button>
+            </div>
+          </CardFooter>
+        </Card>
     </div>
   );
 }

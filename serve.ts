@@ -58,7 +58,7 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
 
   const {
     handleHealth, handleRegister, handleLogin,
-    handleListTenants, handleCreateTenant, handleGetTenant, handleUpdateTenantHours,
+    handleListTenants, handleCreateTenant, handleGetTenant, handleUpdateTenantHours, handleGetDeliveryWindows, handleUpdateTenantDeliveryConfig,
     handleListProducts, handleCreateProduct, handleGetProduct, handleUpdateProduct, handleDeleteProduct,
     handleListOrders, handleCreateOrder, handleGetOrder, handleUpdateOrderStatus, handleDeliverOrder, handleSetDriverLocation, handleListAvailableOrders, handleClaimOrder, handleStartDelivery, handleSetDriverSelfie,
     handleListCategories, handleCreateCategory, handleOrderStream,
@@ -91,6 +91,12 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
   // Tenants
   if (method === "GET" && path === "/api/tenants") return handleListTenants();
   if (method === "POST" && path === "/api/tenants") return handleCreateTenant(body);
+  const deliveryWindowsMatch = path.match(/^\/api\/tenants\/([^/]+)\/delivery-windows$/);
+  if (method === "GET" && deliveryWindowsMatch) return handleGetDeliveryWindows(deliveryWindowsMatch[1]);
+  const deliveryConfigMatch = path.match(/^\/api\/tenants\/([^/]+)\/delivery-config$/);
+  if (method === "PUT" && deliveryConfigMatch) {
+    return handleUpdateTenantDeliveryConfig(deliveryConfigMatch[1], body, requireAuth(req, ["merchant", "admin"]));
+  }
   const tenantMatch = path.match(/^\/api\/tenants\/(.+)$/);
   if (method === "GET" && tenantMatch) return handleGetTenant(tenantMatch[1]);
   const tenantHoursMatch = path.match(/^\/api\/tenants\/([^/]+)\/hours$/);
