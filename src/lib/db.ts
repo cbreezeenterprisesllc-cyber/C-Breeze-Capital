@@ -305,6 +305,36 @@ function initSchema(db: Database) {
       "id TEXT PRIMARY KEY, order_id TEXT NOT NULL UNIQUE, rated_type TEXT NOT NULL DEFAULT 'driver', " +
       "rated_id TEXT NOT NULL, rating INTEGER NOT NULL, comment TEXT DEFAULT '', " +
       "created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY (order_id) REFERENCES orders(id))",
+    // ── Merchant / marketing layer (Phase 1, tech-layer pivot) ─────────────
+    // Promotions: merchant-created deals/coupons surfaced on the retailer's storefront.
+    "CREATE TABLE IF NOT EXISTS promotions (" +
+      "id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT DEFAULT '', " +
+      "code TEXT DEFAULT '', discount_type TEXT NOT NULL DEFAULT 'percent', discount_value REAL DEFAULT 0, " +
+      "starts_at TEXT, ends_at TEXT, is_active INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime('now')), " +
+      "FOREIGN KEY (tenant_id) REFERENCES tenants(id))",
+    // Leads: customer inquiries captured on the retailer's storefront, delivered to the merchant dashboard.
+    "CREATE TABLE IF NOT EXISTS leads (" +
+      "id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, name TEXT DEFAULT '', email TEXT DEFAULT '', " +
+      "phone TEXT DEFAULT '', message TEXT DEFAULT '', source TEXT DEFAULT 'storefront', status TEXT DEFAULT 'new', " +
+      "created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY (tenant_id) REFERENCES tenants(id))",
+    // Customer tags/segments (basic CRM). Identified by tenant + customer email (retailer owns the customer).
+    "CREATE TABLE IF NOT EXISTS customer_tags (" +
+      "id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, customer_email TEXT NOT NULL, tag TEXT NOT NULL, " +
+      "created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY (tenant_id) REFERENCES tenants(id))",
+    // Merchant notes on a customer record (retailer-facing CRM).
+    "CREATE TABLE IF NOT EXISTS customer_notes (" +
+      "id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, customer_email TEXT NOT NULL, note TEXT NOT NULL, " +
+      "created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY (tenant_id) REFERENCES tenants(id))",
+    // Loyalty program config per tenant (points per dollar). GreenExpress stores points but is NOT the seller,
+    // payment intermediary, or distributor — the retailer issues/fulfills rewards.
+    "CREATE TABLE IF NOT EXISTS loyalty_programs (" +
+      "id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL UNIQUE, name TEXT DEFAULT 'Rewards', points_per_dollar REAL DEFAULT 1, " +
+      "is_active INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY (tenant_id) REFERENCES tenants(id))",
+    // Loyalty member points ledger per tenant (retailer-facing).
+    "CREATE TABLE IF NOT EXISTS loyalty_members (" +
+      "id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, customer_email TEXT NOT NULL, points INTEGER DEFAULT 0, " +
+      "updated_at TEXT DEFAULT (datetime('now')), UNIQUE(tenant_id, customer_email), " +
+      "FOREIGN KEY (tenant_id) REFERENCES tenants(id))",
   ]) {
     try { db.run(statement); } catch { /* column already exists */ }
   }

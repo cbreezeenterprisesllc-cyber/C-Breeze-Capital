@@ -938,3 +938,304 @@ export async function handleCreateCheckoutSession(body: Record<string, unknown>)
     return error("Failed to create checkout session", 500);
   }
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// MERCHANT / MARKETING LAYER — Phase 1 (tech-layer pivot)
+// Guardrails: aggregate analytics only; loyalty is retailer-facing (GreenExpress
+// is NOT the seller, payment intermediary, or distributor); retailer is the
+// seller of record — these tools help the retailer acquire & manage customers.
+// ═════════════════════════════════════════════════════════════════════════════
+
+function requireMerchantTenant(auth: { userId: string; role: string; tenantId?: string } | null): string | null {
+  if (!auth) return null;
+  if (auth.role === "merchant" && auth.tenantId) return auth.tenantId;
+  if (auth.role === "admin") return null; // admin passes tenant_id explicitly
+  return null;
+}
+
+// ── Promotions ──────────────────────────────────────────────────────────────
+// GET /api/promotions?tenant_id=...  (public: active only; merchant/admin: ?all=1)
+export function handleListPromotions(url: URL, auth?: { userId: string; role: string; tenantId?: string } | null): Response {
+  const db = getDb();
+  const tenantParam = url.searchParams.get("tenant_id") || "";
+  const all = url.searchParams.get("all") === "1";
+  let tenantId = tenantParam;
+  if (!tenantId && auth && auth.role === "merchant" && auth.tenantId) tenantId = auth.tenantId;
+  if (!tenantId) return error("tenant_id is required", 400);
+  const params: unknown[] = [tenantId];
+  let query = "SELECT * FROM promotions WHERE tenant_id = ?";
+  if (!all) {
+    query += " AND is_active = 1 AND (starts_at IS NULL OR starts_at <= datetime('now')) AND (ends_at IS NULL OR ends_at >= datetime('now'))";
+  }
+  query += " ORDER BY created_at DESC";
+  const rows = db.prepare(query).all(...params);
+  return json({ success: true, data: rows });
+}
+
+// POST /api/promotions  (merchant scoped; admin requires tenant_id)
+export function handleCreatePromotion(body: Record<string, unknown>, auth: { userId: string; role: string; tenantId?: string } | null): Response {
+  const tenantId = auth?.role === "merchant" ? auth.tenantId : (body.tenant_id as string | undefined);
+  if (!tenantId) return error("tenant_id is required for this role", 400);
+  const title = (body.title as string || "").trim();
+  if (!title) return error("title is required", 400);
+  const db = getDb();
+  const id = generateId();
+  const discountType = (body.discount_type as string) || "percent";
+  const discountValue = Number(body.discount_value) || 0;
+  db.prepare(
+    "INSERT INTO promotions (id, tenant_id, title, description, code, discount_type, discount_value, starts_at, ends_at, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(
+    id, tenantId, title, String(body.description || ""), String(body.code || ""),
+    discountType, discountValue, body.starts_at ? String(body.starts_at) : null,
+    body.ends_at ? String(body.ends_at) : null, body.is_active === false ? 0 : 1
+  );
+  const row = db.prepare("SELECT * FROM promotions WHERE id = ?").get(id);
+  return json({ success: true, data: row }, 201);
+}
+
+// PUT /api/promotions/:id
+export function handleUpdatePromotion(id: string, body: Record<string, unknown>, auth: { userId: string; role: string; tenantId?: string } | null): Response {
+  const db = getDb();
+  const existing = db.prepare("SELECT * FROM promotions WHERE id = ?").get(id) as { tenant_id: string } | undefined;
+  if (!existing) return error("Promotion not found", 404);
+  if (auth?.role === "merchant" && existing.tenant_id !== auth.tenantId) return error("Forbidden", 403);
+  const allowed = ["title", "description", "code", "discount_type", "discount_value", "starts_at", "ends_at", "is_active"]
+    .filter((k) => k in body);
+  if (allowed.length === 0) return error("No fields to update", 400);
+  const sets = allowed.map((k) => `${k} = ?`).join(", ");
+  const vals = allowed.map((k) => {
+    const v = (body as Record<string, unknown>)[k];
+    if (k === "is_active") return v === false || v === "false" ? 0 : 1;
+    if (k === "discount_value") return Number(v) || 0;
+    return v === null || v === undefined ? null : String(v);
+  });
+  db.prepare(`UPDATE promotions SET ${sets} WHERE id = ?`).run(...vals, id);
+  const row = db.prepare("SELECT * FROM promotions WHERE id = ?").get(id);
+  return json({ success: true, data: row });
+}
+
+// DELETE /api/promotions/:id
+export function handleDeletePromotion(id: string, auth: { userId: string; role: string; tenantId?: string } | null): Response {
+  const db = getDb();
+  const existing = db.prepare("SELECT * FROM promotions WHERE id = ?").get(id) as { tenant_id: string } | undefined;
+  if (!existing) return error("Promotion not found", 404);
+  if (auth?.role === "merchant" && existing.tenant_id !== auth.tenantId) return error("Forbidden", 403);
+  db.prepare("DELETE FROM promotions WHERE id = ?").run(id);
+  return json({ success: true });
+}
+
+// ── Leads (lead capture) ─────────────────────────────────────────────────────
+// POST /api/leads  (public storefront inquiry form)
+export function handleCreateLead(body: Record<string, unknown>): Response {
+  const tenantId = (body.tenant_id as string || "").trim();
+  if (!tenantId) return error("tenant_id is required", 400);
+  if (!(body.email as string) && !(body.phone as string)) return error("email or phone is required", 400);
+  const db = getDb();
+  const id = generateId();
+  db.prepare("INSERT INTO leads (id, tenant_id, name, email, phone, message, source, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'new')")
+    .run(id, tenantId, String(body.name || ""), String(body.email || ""), String(body.phone || ""),
+         String(body.message || ""), String(body.source || "storefront"));
+  return json({ success: true, data: { id } }, 201);
+}
+
+// GET /api/leads  (merchant scoped; admin requires ?tenant_id)
+export function handleListLeads(url: URL, auth: { userId: string; role: string; tenantId?: string } | null): Response {
+  const db = getDb();
+  const tenantId = auth?.role === "merchant" ? auth.tenantId : (url.searchParams.get("tenant_id") || "");
+  if (!tenantId) return error("tenant_id is required for this role", 400);
+  const rows = db.prepare("SELECT * FROM leads WHERE tenant_id = ? ORDER BY created_at DESC").all(tenantId);
+  return json({ success: true, data: rows });
+}
+
+// PUT /api/leads/:id  (status update)
+export function handleUpdateLeadStatus(id: string, body: Record<string, unknown>, auth: { userId: string; role: string; tenantId?: string } | null): Response {
+  const db = getDb();
+  const existing = db.prepare("SELECT * FROM leads WHERE id = ?").get(id) as { tenant_id: string } | undefined;
+  if (!existing) return error("Lead not found", 404);
+  if (auth?.role === "merchant" && existing.tenant_id !== auth.tenantId) return error("Forbidden", 403);
+  const status = ["new", "contacted", "converted"].includes(String(body.status)) ? String(body.status) : "new";
+  db.prepare("UPDATE leads SET status = ? WHERE id = ?").run(status, id);
+  return json({ success: true, data: { id, status } });
+}
+
+// ── CRM: customer records (retailer owns the customer) ───────────────────────
+// GET /api/customers  (merchant scoped) — aggregate per-customer records derived
+// from the retailer's orders, plus merchant tags/notes.
+export function handleListCustomers(auth: { userId: string; role: string; tenantId?: string } | null): Response {
+  const db = getDb();
+  const tenantId = auth?.role === "merchant" ? auth.tenantId : null;
+  if (!tenantId) return error("tenant_id is required for this role", 400);
+  const records = db.prepare(`
+    SELECT u.id, u.email, u.name, u.phone,
+           COUNT(o.id) AS order_count,
+           COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN o.total ELSE 0 END), 0) AS total_spend,
+           MAX(o.created_at) AS last_order_at
+    FROM users u
+    JOIN orders o ON o.customer_id = u.id
+    WHERE o.tenant_id = ?
+    GROUP BY u.id
+    ORDER BY total_spend DESC
+  `).all(tenantId) as Array<Record<string, unknown>>;
+  const tags = db.prepare("SELECT customer_email, tag FROM customer_tags WHERE tenant_id = ?").all(tenantId) as Array<{ customer_email: string; tag: string }>;
+  const notes = db.prepare("SELECT * FROM customer_notes WHERE tenant_id = ? ORDER BY created_at DESC").all(tenantId) as Array<{ customer_email: string; note: string; created_at: string }>;
+  const tagMap: Record<string, string[]> = {};
+  for (const t of tags) (tagMap[t.customer_email] = tagMap[t.customer_email] || []).push(t.tag);
+  const noteMap: Record<string, typeof notes> = {};
+  for (const n of notes) (noteMap[n.customer_email] = noteMap[n.customer_email] || []).push(n);
+  const data = records.map((r) => {
+    const email = String(r.email || "");
+    return { ...r, tags: tagMap[email] || [], notes: noteMap[email] || [] };
+  });
+  return json({ success: true, data });
+}
+
+// POST /api/customers/tags  { customer_email, tag }  (merchant scoped)
+export function handleAddCustomerTag(body: Record<string, unknown>, auth: { userId: string; role: string; tenantId?: string } | null): Response {
+  const tenantId = auth?.role === "merchant" ? auth.tenantId : null;
+  if (!tenantId) return error("tenant_id is required for this role", 400);
+  const email = String(body.customer_email || "").trim().toLowerCase();
+  const tag = String(body.tag || "").trim();
+  if (!email || !tag) return error("customer_email and tag are required", 400);
+  const db = getDb();
+  const id = generateId();
+  db.prepare("INSERT OR IGNORE INTO customer_tags (id, tenant_id, customer_email, tag) VALUES (?, ?, ?, ?)").run(id, tenantId, email, tag);
+  return json({ success: true });
+}
+
+// POST /api/customers/notes  { customer_email, note }  (merchant scoped)
+export function handleAddCustomerNote(body: Record<string, unknown>, auth: { userId: string; role: string; tenantId?: string } | null): Response {
+  const tenantId = auth?.role === "merchant" ? auth.tenantId : null;
+  if (!tenantId) return error("tenant_id is required for this role", 400);
+  const email = String(body.customer_email || "").trim().toLowerCase();
+  const note = String(body.note || "").trim();
+  if (!email || !note) return error("customer_email and note are required", 400);
+  const db = getDb();
+  const id = generateId();
+  db.prepare("INSERT INTO customer_notes (id, tenant_id, customer_email, note) VALUES (?, ?, ?, ?)").run(id, tenantId, email, note);
+  return json({ success: true });
+}
+
+// ── Loyalty (retailer-facing) ─────────────────────────────────────────────────
+// GET /api/loyalty/program  (merchant) — returns program config or a default
+export function handleGetLoyaltyProgram(auth: { userId: string; role: string; tenantId?: string } | null): Response {
+  const db = getDb();
+  const tenantId = auth?.role === "merchant" ? auth.tenantId : null;
+  if (!tenantId) return error("tenant_id is required for this role", 400);
+  let prog = db.prepare("SELECT * FROM loyalty_programs WHERE tenant_id = ?").get(tenantId) as Record<string, unknown> | undefined;
+  if (!prog) {
+    const id = generateId();
+    db.prepare("INSERT INTO loyalty_programs (id, tenant_id, name, points_per_dollar, is_active) VALUES (?, ?, 'Rewards', 1, 1)").run(id, tenantId);
+    prog = db.prepare("SELECT * FROM loyalty_programs WHERE tenant_id = ?").get(tenantId) as Record<string, unknown>;
+  }
+  return json({ success: true, data: prog });
+}
+
+// PUT /api/loyalty/program
+export function handleUpdateLoyaltyProgram(body: Record<string, unknown>, auth: { userId: string; role: string; tenantId?: string } | null): Response {
+  const db = getDb();
+  const tenantId = auth?.role === "merchant" ? auth.tenantId : null;
+  if (!tenantId) return error("tenant_id is required for this role", 400);
+  const existing = db.prepare("SELECT id FROM loyalty_programs WHERE tenant_id = ?").get(tenantId) as { id: string } | undefined;
+  const id = existing?.id || generateId();
+  if (!existing) {
+    db.prepare("INSERT INTO loyalty_programs (id, tenant_id, name, points_per_dollar, is_active) VALUES (?, ?, ?, ?, ?)").run(
+      id, tenantId, String(body.name || "Rewards"), Number(body.points_per_dollar) || 1, body.is_active === false ? 0 : 1);
+  } else {
+    const name = body.name !== undefined ? String(body.name) : undefined;
+    const ppd = body.points_per_dollar !== undefined ? (Number(body.points_per_dollar) || 1) : undefined;
+    const active = body.is_active !== undefined ? (body.is_active === false ? 0 : 1) : undefined;
+    const sets: string[] = [];
+    const vals: Array<string | number> = [];
+    if (name !== undefined) { sets.push("name = ?"); vals.push(name); }
+    if (ppd !== undefined) { sets.push("points_per_dollar = ?"); vals.push(ppd); }
+    if (active !== undefined) { sets.push("is_active = ?"); vals.push(active); }
+    if (sets.length) db.prepare(`UPDATE loyalty_programs SET ${sets.join(", ")} WHERE id = ?`).run(...vals, id);
+  }
+  const prog = db.prepare("SELECT * FROM loyalty_programs WHERE id = ?").get(id);
+  return json({ success: true, data: prog });
+}
+
+// GET /api/loyalty/members  (merchant) — points ledger
+export function handleListLoyaltyMembers(auth: { userId: string; role: string; tenantId?: string } | null): Response {
+  const db = getDb();
+  const tenantId = auth?.role === "merchant" ? auth.tenantId : null;
+  if (!tenantId) return error("tenant_id is required for this role", 400);
+  const rows = db.prepare("SELECT * FROM loyalty_members WHERE tenant_id = ? ORDER BY points DESC").all(tenantId);
+  return json({ success: true, data: rows });
+}
+
+// ── Aggregate analytics (merchant) ────────────────────────────────────────────
+// GET /api/analytics?tenant_id= (admin) — merchant gets own tenant. AGGREGATE ONLY:
+// never exposes individual consumer purchase rows as a product.
+export function handleMerchantAnalytics(url: URL, auth: { userId: string; role: string; tenantId?: string } | null): Response {
+  const db = getDb();
+  const tenantId = auth?.role === "merchant" ? auth.tenantId : (url.searchParams.get("tenant_id") || "");
+  if (!tenantId) return error("tenant_id is required for this role", 400);
+  const days = Math.max(1, Math.min(365, Number(url.searchParams.get("days")) || 30));
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const complete = ["confirmed", "preparing", "in_transit", "delivered"];
+
+  // Summary
+  const summaryRow = db.prepare(`
+    SELECT COUNT(*) AS orders,
+           COALESCE(SUM(CASE WHEN status != 'cancelled' THEN total ELSE 0 END), 0) AS revenue
+    FROM orders WHERE tenant_id = ? AND created_at >= ?
+  `).get(tenantId, since) as { orders: number; revenue: number };
+  const totalOrders = summaryRow.orders || 0;
+  const revenue = summaryRow.revenue || 0;
+  const aov = totalOrders ? Math.round((revenue / totalOrders) * 100) / 100 : 0;
+
+  // Customer acquisition / retention (aggregate)
+  const cust = db.prepare(`
+    SELECT customer_id, COUNT(*) AS n, MIN(created_at) AS first_at
+    FROM orders WHERE tenant_id = ? AND status != 'cancelled'
+    GROUP BY customer_id
+  `).all(tenantId) as Array<{ customer_id: string; n: number; first_at: string }>;
+  const periodCustomers = cust.filter((c) => c.first_at >= since);
+  const newCustomers = periodCustomers.find((c) => c.n === 1) ? periodCustomers.filter((c) => c.n === 1).length : 0;
+  const totalDistinct = cust.length;
+  const repeatCustomers = cust.filter((c) => c.n > 1).length;
+  const retention = totalDistinct ? Math.round((repeatCustomers / totalDistinct) * 1000) / 10 : 0;
+
+  // Popular categories (via order_items -> products -> categories)
+  const categories = db.prepare(`
+    SELECT COALESCE(c.name, oi.product_name) AS category, SUM(oi.quantity) AS units, SUM(oi.quantity * oi.unit_price) AS revenue
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    LEFT JOIN products p ON p.id = oi.product_id
+    LEFT JOIN categories c ON c.id = p.category_id
+    WHERE o.tenant_id = ? AND o.created_at >= ? AND o.status != 'cancelled'
+    GROUP BY COALESCE(c.name, oi.product_name)
+    ORDER BY revenue DESC LIMIT 8
+  `).all(tenantId, since);
+
+  // Top products
+  const topProducts = db.prepare(`
+    SELECT oi.product_name AS name, SUM(oi.quantity) AS qty, SUM(oi.quantity * oi.unit_price) AS revenue
+    FROM order_items oi JOIN orders o ON o.id = oi.order_id
+    WHERE o.tenant_id = ? AND o.created_at >= ? AND o.status != 'cancelled'
+    GROUP BY oi.product_name ORDER BY revenue DESC LIMIT 8
+  `).all(tenantId, since);
+
+  // Geographic demand (aggregate by delivery area) — delivery_address is stored free text
+  const geo = db.prepare(`
+    SELECT delivery_address AS area, COUNT(*) AS orders, SUM(total) AS revenue
+    FROM orders WHERE tenant_id = ? AND created_at >= ? AND status != 'cancelled'
+      AND (delivery_address IS NOT NULL AND delivery_address != '')
+    GROUP BY delivery_address ORDER BY orders DESC LIMIT 8
+  `).all(tenantId, since);
+
+  // Traffic/inquiries proxy: leads captured (aggregate) + orders as conversion surface
+  const leadCount = (db.prepare("SELECT COUNT(*) AS n FROM leads WHERE tenant_id = ? AND created_at >= ?").get(tenantId, since) as { n: number }).n;
+  const conversion = leadCount ? Math.round((totalOrders / leadCount) * 1000) / 10 : 0;
+
+  return json({ success: true, data: {
+    periodDays: days,
+    summary: { revenue: Math.round(revenue * 100) / 100, orders: totalOrders, aov, leadCount },
+    customers: { totalDistinct, newCustomers, repeatCustomers, retentionPct: retention },
+    categories,
+    topProducts,
+    geographic: geo,
+    acquisition: { conversionPct: conversion },
+  } });
+}

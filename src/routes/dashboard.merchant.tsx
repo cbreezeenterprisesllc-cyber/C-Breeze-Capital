@@ -8,6 +8,10 @@ const merchantNavItems = [
   { label: "Inventory", href: "/dashboard/merchant/inventory", icon: <Icon name="package" size={18} /> },
   { label: "Orders", href: "/dashboard/merchant/orders", icon: <Icon name="clipboard" size={18} /> },
   { label: "Tracking", href: "/dashboard/merchant/tracking", icon: <Icon name="car" size={18} /> },
+  { label: "Customers", href: "/dashboard/merchant/customers", icon: <Icon name="person" size={18} /> },
+  { label: "Promotions", href: "/dashboard/merchant/promotions", icon: <Icon name="celebration" size={18} /> },
+  { label: "Leads", href: "/dashboard/merchant/leads", icon: <Icon name="target" size={18} /> },
+  { label: "Loyalty", href: "/dashboard/merchant/loyalty", icon: <Icon name="medal" size={18} /> },
   { label: "Analytics", href: "/dashboard/merchant/analytics", icon: <Icon name="chart" size={18} /> },
   { label: "Settings", href: "/dashboard/merchant/settings", icon: <Icon name="settings" size={18} /> },
 ];
