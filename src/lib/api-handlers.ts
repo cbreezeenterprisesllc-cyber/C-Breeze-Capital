@@ -395,7 +395,9 @@ export function handleGetOrder(orderId: string): Response {
   if (!order) return error("Order not found", 404);
 
   const items = db.prepare("SELECT * FROM order_items WHERE order_id = ?").all(orderId);
-  return json({ success: true, data: { ...order, items } });
+  // my_rating lets the customer tracking page show the "already rated" state on reload.
+  const rating = db.prepare("SELECT rating FROM order_ratings WHERE order_id = ?").get(orderId) as Record<string, unknown> | undefined;
+  return json({ success: true, data: { ...order, items, my_rating: rating ? rating.rating : null } });
 }
 
 // PUT /api/orders/:id/status
@@ -609,6 +611,12 @@ export function handleListAvailableOrders(
   url: URL,
 ): Response {
   if (!auth) return error("Unauthorized", 401);
+  // Deactivated drivers are excluded from dispatch entirely.
+  const me = db.prepare("SELECT email FROM users WHERE id = ?").get(auth.userId) as Record<string, any> | undefined;
+  if (me) {
+    const dr = db.prepare("SELECT is_active FROM drivers WHERE email = ?").get(me.email) as Record<string, any> | undefined;
+    if (dr && dr.is_active === 0) return json({ success: true, data: [], deactivated: true });
+  }
   const latP = url.searchParams.get("lat");
   const lngP = url.searchParams.get("lng");
   let lat = latP !== null && latP !== "" ? Number(latP) : NaN;
@@ -642,6 +650,12 @@ export function handleListAvailableOrders(
 export function handleClaimOrder(orderId: string, auth: { userId: string; role: string; tenantId?: string } | null): Response {
   if (!auth) return error("Unauthorized", 401);
   const db = getDb();
+  // Deactivated drivers cannot claim orders (enforcement for the rating system).
+  const claimer = db.prepare("SELECT email FROM users WHERE id = ?").get(auth.userId) as Record<string, any> | undefined;
+  if (claimer) {
+    const dr = db.prepare("SELECT is_active FROM drivers WHERE email = ?").get(claimer.email) as Record<string, any> | undefined;
+    if (dr && dr.is_active === 0) return error("Your driver account is deactivated — contact support to be reinstated.", 403);
+  }
   const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId) as any;
   if (!order) return error("Order not found", 404);
   if (order.driver_id) return error("This order is already claimed", 409);

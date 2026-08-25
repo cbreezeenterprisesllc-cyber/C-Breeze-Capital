@@ -8,6 +8,7 @@ import { Icon } from "~/components/Icon";
 import { ChatWidget } from "~/components/ChatWidget";
 import { SiteFooter } from "~/components/SiteFooter";
 import { formatScheduledLabel } from "~/lib/delivery-windows";
+import { getChatToken } from "~/lib/chat-client";
 
 export const Route = createFileRoute("/orders/$id/track")({
   component: TrackOrder,
@@ -37,6 +38,13 @@ function TrackOrder() {
   const { id } = Route.useParams();
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  // Rating state
+  const [alreadyRated, setAlreadyRated] = useState<number | null>(null);
+  const [rateValue, setRateValue] = useState(0);
+  const [rateComment, setRateComment] = useState("");
+  const [rateMsg, setRateMsg] = useState("");
+  const [rateError, setRateError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const fetchOrder = async () => {
     try {
@@ -87,6 +95,35 @@ function TrackOrder() {
   const currentStepIndex = STATUS_STEPS.indexOf(order.status);
   const isCancelled = order.status === "cancelled";
   const items: any[] = order.items || [];
+  const effectiveRated = alreadyRated ?? (order.my_rating != null ? order.my_rating : null);
+
+  const submitRating = async () => {
+    setRateError(""); setRateMsg("");
+    if (rateValue < 1) { setRateError("Tap a star to rate your driver."); return; }
+    const token = getChatToken();
+    if (!token) { setRateError("Sign in to rate your driver — your rated order saves to your account."); return; }
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/orders/${id}/rating`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ rating: rateValue, comment: rateComment.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 409) { setAlreadyRated(rateValue || 0); setRateMsg("Thanks — you've already rated this delivery."); }
+        else setRateError(data.error || "Couldn't submit your rating. Please try again.");
+        return;
+      }
+      setAlreadyRated(rateValue);
+      setRateMsg("Thanks for rating your driver! Your feedback helps keep deliveries on time.");
+      fetchOrder();
+    } catch {
+      setRateError("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-dvh bg-[var(--surface-secondary)]">
@@ -166,6 +203,59 @@ function TrackOrder() {
           </Card>
         )}
 
+        {/* Rate your driver — only after a delivered, driver-assigned order */}
+        {order.status === "delivered" && order.driver_id && (
+          <Card padding="lg" className="mb-6 border-[var(--color-primary-300)] animate-scale-in">
+            <CardHeader>
+              <h2 className="text-lg font-[var(--font-heading)] text-[var(--color-neutral-800)] flex items-center gap-2">
+                <Icon name="celebration" size={18} /> {effectiveRated != null ? "Rating submitted" : "Rate your driver"}
+              </h2>
+            </CardHeader>
+            <CardBody>
+              {effectiveRated != null ? (
+                <div className="text-center py-2">
+                  <div className="flex justify-center gap-1 mb-2">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <span key={i} className={`text-2xl ${i <= effectiveRated ? "text-amber-400" : "text-[var(--color-neutral-300)]"}`}>★</span>
+                    ))}
+                  </div>
+                  <p className="text-sm text-[var(--color-neutral-500)]">You rated this delivery {effectiveRated} out of 5 stars. Thank you!</p>
+                  {rateMsg && <p className="text-sm text-[var(--color-success-700)] mt-2">{rateMsg}</p>}
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm text-[var(--color-neutral-600)] mb-3">How was your driver's delivery? Your rating helps keep orders on time.</p>
+                  <div className="flex justify-center gap-3 mb-4">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => { setRateValue(i); setRateError(""); }}
+                        className={`text-3xl transition-transform ${i <= rateValue ? "text-amber-400 scale-110" : "text-[var(--color-neutral-300)] hover:text-amber-200"}`}
+                        aria-label={`${i} star${i > 1 ? "s" : ""}`}
+                      >★</button>
+                    ))}
+                  </div>
+                  <textarea
+                    value={rateComment}
+                    onChange={(e) => setRateComment(e.target.value)}
+                    rows={2}
+                    maxLength={500}
+                    placeholder="Optional: leave a quick note about your delivery..."
+                    className="w-full p-3 rounded-xl border border-[var(--color-neutral-200)] text-sm resize-none focus:border-[var(--color-primary-400)] transition-colors mb-3 bg-[var(--surface-primary)]"
+                  />
+                  {rateError && <p className="text-sm text-[var(--color-error)] mb-2">{rateError}</p>}
+                  {rateMsg && <p className="text-sm text-[var(--color-success-700)] mb-2">{rateMsg}</p>}
+                  <div className="text-center">
+                    <Button variant="neon" onClick={submitRating} disabled={submitting}>
+                      {submitting ? "Submitting..." : "Submit Rating"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardBody>
+          </Card>
+        )}
         {/* Order Details */}
         <Card padding="lg" className="mb-6">
           <CardHeader>

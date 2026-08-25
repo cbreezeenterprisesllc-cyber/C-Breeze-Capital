@@ -7,6 +7,7 @@ import { Button } from "~/components/Button";
 import { Badge } from "~/components/Badge";
 import { Modal } from "~/components/Modal";
 import { Icon } from "~/components/Icon";
+import { getChatToken } from "~/lib/chat-client";
 
 export const Route = createFileRoute("/admin/drivers")({
   component: AdminDriverApplications,
@@ -25,6 +26,21 @@ function AdminDriverApplications() {
   const [filter, setFilter] = useState("pending");
   const [selectedApp, setSelectedApp] = useState<any>(null);
   const [reviewNotes, setReviewNotes] = useState("");
+  const [view, setView] = useState<"applications" | "performance">("applications");
+  const [perfDrivers, setPerfDrivers] = useState<any[]>([]);
+  const [perfLoading, setPerfLoading] = useState(false);
+  const [perfError, setPerfError] = useState("");
+  const fetchPerformance = async () => {
+    const token = getChatToken();
+    if (!token) { setPerfError("Sign in as admin to view driver performance."); return; }
+    setPerfLoading(true); setPerfError("");
+    try {
+      const res = await apiFetch("/api/admin/drivers/performance", { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) setPerfDrivers(data.data || []);
+      else setPerfError(data.error || "Couldn't load driver performance.");
+    } catch { setPerfError("Network error."); } finally { setPerfLoading(false); }
+  };
 
   const fetchApplications = async (status: string) => {
     try {
@@ -61,11 +77,24 @@ function AdminDriverApplications() {
     }
   };
 
+  if (view === "performance") {
+    return (
+      <div className="animate-fade-in">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-[var(--font-heading)] gradient-text-green"><Icon name="car" size={26} /> Driver Performance</h1>
+          <p className="text-sm text-[var(--color-neutral-500)]">Ratings, on-time rate &amp; enforcement status</p>
+        </div>
+        <ViewToggle view={view} setView={setView} />
+        <PerformanceView drivers={perfDrivers} loading={perfLoading} error={perfError} onLoad={fetchPerformance} />
+      </div>
+    );
+  }
   return (
     <div className="animate-fade-in">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-[var(--font-heading)] gradient-text-green"><Icon name="car" size={26} /> Driver Applications</h1>
       </div>
+      <ViewToggle view={view} setView={setView} />
 
       {/* Filter tabs */}
       <div className="flex gap-2 mb-6">
@@ -201,6 +230,72 @@ function AdminDriverApplications() {
           </div>
         )}
       </Modal>
+    </div>
+  );
+}
+
+function ViewToggle({ view, setView }: { view: "applications" | "performance"; setView: (v: "applications" | "performance") => void }) {
+  return (
+    <div className="flex gap-2 mb-6">
+      {(["applications", "performance"] as const).map((v) => (
+        <button
+          key={v}
+          onClick={() => setView(v)}
+          className={`px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-all ${
+            view === v
+              ? "bg-[var(--color-primary-800)] text-white shadow-md"
+              : "bg-[var(--surface-primary)] border border-[var(--color-neutral-200)] text-[var(--color-neutral-600)] hover:bg-[var(--color-neutral-100)]"
+          }`}
+        >
+          {v === "applications" ? "Applications" : "Rating & Performance"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function statusBadgeVariant(status: string): "success" | "warning" | "error" | "neutral" {
+  if (status === "active") return "success";
+  if (status === "warning") return "warning";
+  if (status === "deactivated") return "error";
+  return "neutral";
+}
+
+function PerformanceView({ drivers, loading, error, onLoad }: { drivers: any[]; loading: boolean; error: string; onLoad: () => void }) {
+  useEffect(() => { onLoad(); }, []);
+  return (
+    <div>
+      {error && <div className="rounded-lg bg-[var(--color-danger-50)] px-4 py-3 text-sm text-[var(--color-danger-700)] mb-4">{error}</div>}
+      {loading ? (
+        <div className="flex items-center justify-center py-20"><div className="leaf-spinner" /></div>
+      ) : drivers.length === 0 ? (
+        <div className="text-center py-20 text-[var(--color-neutral-400)]">
+          <p className="text-lg">No drivers yet. Drivers appear here after they've placed or completed deliveries.</p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {drivers.map((d: any) => (
+            <Card key={d.id} padding="md">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-semibold">{d.name || d.email}</p>
+                  <p className="text-sm text-[var(--color-neutral-500)] truncate">{d.email}</p>
+                </div>
+                <Badge variant={statusBadgeVariant(d.status)} size="md" dot>
+                  {d.status === "scoring" ? "Building score" : d.status === "active" ? "Active" : d.status === "warning" ? "Warning" : "Deactivated"}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                <div><p className="text-sm text-[var(--color-neutral-500)]">Avg rating</p><p className="font-semibold">{d.avgRating != null ? `${d.avgRating.toFixed(1)}★` : "—"}</p></div>
+                <div><p className="text-sm text-[var(--color-neutral-500)]">On-time</p><p className="font-semibold">{d.onTimeRate != null ? `${(d.onTimeRate * 100).toFixed(0)}%` : "—"}</p></div>
+                <div><p className="text-sm text-[var(--color-neutral-500)]">Delivered</p><p className="font-semibold">{d.deliveredCount ?? 0}</p></div>
+                <div><p className="text-sm text-[var(--color-neutral-500)]">Composite</p><p className="font-semibold">{d.composite != null ? d.composite.toFixed(2) : "—"}</p></div>
+              </div>
+              {d.reason && <p className="text-xs text-[var(--color-neutral-400)] mt-3">{d.reason}</p>}
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

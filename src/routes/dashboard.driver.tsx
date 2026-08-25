@@ -520,10 +520,71 @@ function AvailableOrdersTab() {
   );
 }
 
+function PerformanceCard() {
+  const [perf, setPerf] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const load = async () => {
+    const token = getChatToken();
+    if (!token) { setLoading(false); return; }
+    try {
+      const res = await fetch("/api/drivers/me/performance", { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) setPerf(data.data);
+    } catch { /* ignore */ } finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+  if (!getChatToken()) return null;
+  if (loading) return null;
+  if (!perf) return null;
+  const status = perf.status || "scoring";
+  const stat = (label: string, value: string) => (
+    <div className="text-center">
+      <p className="text-lg font-bold text-[var(--color-neutral-800)]">{value}</p>
+      <p className="text-xs text-[var(--color-neutral-500)]">{label}</p>
+    </div>
+  );
+  return (
+    <div className="space-y-3">
+      {status === "warning" && (
+        <div className="rounded-xl bg-amber-50 border border-amber-300 px-4 py-3 text-sm text-amber-800">
+          <span className="font-semibold">⚠️ You're at risk of deactivation</span> — your performance is below the warning threshold. Consistent on-time deliveries and good ratings will get you back to good standing.
+        </div>
+      )}
+      {status === "deactivated" && (
+        <div className="rounded-xl bg-[var(--color-danger-50)] border border-[var(--color-error)]/40 px-4 py-3 text-sm text-[var(--color-danger-700)]">
+          <span className="font-semibold">Your driver account is deactivated.</span> You can no longer claim or deliver orders. Contact support to be reinstated.
+        </div>
+      )}
+      <Card>
+        <div className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-serif font-bold">My Performance</h3>
+            <Badge variant={status === "active" ? "success" : status === "warning" ? "warning" : status === "deactivated" ? "error" : "neutral"}>
+              {status === "scoring" ? "Building score" : status === "active" ? "Active" : status === "warning" ? "Warning" : "Deactivated"}
+            </Badge>
+          </div>
+          <div className="flex justify-around">
+            {stat("Avg rating", perf.avgRating != null ? `${perf.avgRating.toFixed(1)}★` : "—")}
+            {stat("On-time", perf.onTimeRate != null ? `${(perf.onTimeRate * 100).toFixed(0)}%` : "—")}
+            {stat("Delivered", String(perf.deliveredCount ?? 0))}
+            {stat("Composite", perf.composite != null ? perf.composite.toFixed(2) : "—")}
+          </div>
+          {status === "scoring" && (
+            <p className="text-xs text-[var(--color-neutral-500)] mt-3 text-center">
+              Your score starts after 10 delivered orders — currently {perf.deliveredCount ?? 0}.
+            </p>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function DriverPanel() {
   const [tab, setTab] = useState<"deliveries" | "available" | "chat">("deliveries");
   return (
     <div className="space-y-4">
+      <PerformanceCard />
       <div className="flex gap-1 rounded-lg bg-[var(--color-neutral-100)] p-1 w-fit">
         <button onClick={() => setTab("deliveries")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${tab === "deliveries" ? "bg-white shadow text-[var(--color-primary-700)]" : "text-[var(--color-neutral-500)]"}`}>Deliveries</button>
         <button onClick={() => setTab("available")} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${tab === "available" ? "bg-white shadow text-[var(--color-primary-700)]" : "text-[var(--color-neutral-500)]"}`}>Available Nearby</button>
