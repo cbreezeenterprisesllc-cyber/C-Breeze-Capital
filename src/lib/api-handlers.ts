@@ -2,6 +2,7 @@ import { getDb } from "~/lib/db";
 import { hashPassword, verifyPassword, generateToken, generateId } from "~/lib/auth";
 import { sanitizeHours } from "~/lib/store-hours";
 import { computeWindows, parseDeliveryConfig, sanitizeDeliveryConfig } from "~/lib/delivery-windows";
+import { computeOnTime, evaluateDriver } from "~/lib/driverPerformance";
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -461,8 +462,80 @@ export function handleDeliverOrder(
       verified_by=?, verified_at=datetime('now'), updated_at=datetime('now')
      WHERE id=?`
   ).run(String(idDocumentType), lastFour, String(idDob), String(idName), sig, auth.userId, orderId);
+  // Score on-time performance for this delivered order (assigned driver only).
+  if (order.driver_id) {
+    const fresh = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId) as Record<string, any>;
+    const onTime = computeOnTime(fresh);
+    if (onTime !== null) db.prepare("UPDATE orders SET on_time = ? WHERE id = ?").run(onTime, orderId);
+    applyDriverStatus(db, order.driver_id);
+  }
   const updated = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
   return json({ success: true, data: updated });
+}
+// POST /api/orders/:id/rating — customer rates the delivery driver (1–5) + optional comment,
+// only after the order is delivered. One rating per order (409 on duplicate); pickup/curbside
+// (no driver) and pre-delivery ratings are rejected (400). Non-mutating to driver status.
+export function handleRateOrder(
+  orderId: string,
+  body: Record<string, unknown>,
+  auth: { userId: string; role: string; tenantId?: string } | null,
+): Response {
+  if (!auth) return error("Unauthorized", 401);
+  const db = getDb();
+  const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId) as Record<string, any> | undefined;
+  if (!order) return error("Order not found", 404);
+  if (order.status !== "delivered") return error("Orders can only be rated after delivery", 400);
+  if (!order.driver_id) return error("This order has no driver to rate", 400);
+  const existing = db.prepare("SELECT 1 FROM order_ratings WHERE order_id = ?").get(orderId);
+  if (existing) return error("This order has already been rated", 409);
+  // Only the order's customer (or admin) may rate.
+  const isCustomer = order.customer_id === auth.userId;
+  const isAdmin = auth.role === "admin";
+  if (!isCustomer && !isAdmin) return error("Forbidden", 403);
+  const rating = Math.round(Number(body.rating));
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) return error("Rating must be an integer 1–5", 400);
+  const comment = String(body.comment ?? "").trim().slice(0, 500);
+  const id = crypto.randomUUID();
+  db.prepare(
+    "INSERT INTO order_ratings (id, order_id, rated_type, rated_id, rating, comment) VALUES (?, 'driver', ?, ?, ?)"
+  ).run(id, orderId, order.driver_id, rating, comment);
+  applyDriverStatus(db, order.driver_id);
+  return json({ success: true, data: { id, order_id: orderId, rating, comment } }, 201);
+}
+// Aggregate a driver's performance + apply warning/deactivation (v1 thresholds in driverPerformance.ts).
+function driverPerformance(db: ReturnType<typeof getDb>, userId: string) {
+  const orders = db.prepare("SELECT * FROM orders WHERE driver_id = ?").all(userId) as Record<string, any>[];
+  const ratings = db.prepare("SELECT rating FROM order_ratings WHERE rated_type='driver' AND rated_id = ?").all(userId) as Record<string, any>[];
+  return evaluateDriver(orders as any, ratings as any);
+}
+function applyDriverStatus(db: ReturnType<typeof getDb>, userId: string): void {
+  const user = db.prepare("SELECT email FROM users WHERE id = ?").get(userId) as Record<string, any> | undefined;
+  if (!user) return;
+  const perf = driverPerformance(db, userId);
+  if (perf.status === "deactivated") {
+    db.prepare("UPDATE drivers SET is_active = 0 WHERE email = ?").run(user.email);
+  }
+}
+// GET /api/drivers/me/performance — the authenticated driver's aggregate score,
+// on-time rate, average rating, warning/deactivation status.
+export function handleGetDriverPerformance(
+  auth: { userId: string; role: string; tenantId?: string } | null,
+): Response {
+  if (!auth || auth.role !== "driver") return error("Forbidden", 403);
+  const db = getDb();
+  return json({ success: true, data: driverPerformance(db, auth.userId) });
+}
+// GET /api/admin/drivers/performance — admin view of all drivers' scores + status.
+export function handleListDriverPerformance(
+  auth: { userId: string; role: string; tenantId?: string } | null,
+): Response {
+  if (!auth || auth.role !== "admin") return error("Forbidden", 403);
+  const db = getDb();
+  const users = db.prepare("SELECT * FROM users WHERE role = 'driver'").all() as Record<string, any>[];
+  return json({
+    success: true,
+    data: users.map((u) => ({ id: u.id, name: u.name, email: u.email, ...driverPerformance(db, u.id) })),
+  });
 }
 // PUT /api/drivers/me/selfie — set the operator's on-file reference selfie (driver onboarding)
 export function handleSetDriverSelfie(

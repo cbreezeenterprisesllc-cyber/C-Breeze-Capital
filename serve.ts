@@ -60,7 +60,7 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
     handleHealth, handleRegister, handleLogin,
     handleListTenants, handleCreateTenant, handleGetTenant, handleUpdateTenantHours, handleGetDeliveryWindows, handleUpdateTenantDeliveryConfig,
     handleListProducts, handleCreateProduct, handleGetProduct, handleUpdateProduct, handleDeleteProduct,
-    handleListOrders, handleCreateOrder, handleGetOrder, handleUpdateOrderStatus, handleDeliverOrder, handleSetDriverLocation, handleListAvailableOrders, handleClaimOrder, handleStartDelivery, handleSetDriverSelfie,
+    handleListOrders, handleCreateOrder, handleGetOrder, handleUpdateOrderStatus, handleDeliverOrder, handleRateOrder, handleGetDriverPerformance, handleListDriverPerformance, handleSetDriverLocation, handleListAvailableOrders, handleClaimOrder, handleStartDelivery, handleSetDriverSelfie,
     handleListCategories, handleCreateCategory, handleOrderStream,
     handleCreateCheckoutSession,
     handleDriverApply, handleDriverStatus,
@@ -121,6 +121,10 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
   if (method === "PUT" && orderStatusMatch) return handleUpdateOrderStatus(orderStatusMatch[1], body);
   const deliverMatch = path.match(/^\/api\/orders\/([^/]+)\/deliver$/);
   if (method === "PUT" && deliverMatch) return handleDeliverOrder(deliverMatch[1], body, requireAuth(req, ["driver", "merchant", "admin"]));
+  const rateMatch = path.match(/^\/api\/orders\/([^/]+)\/rating$/);
+  if (method === "POST" && rateMatch) return handleRateOrder(rateMatch[1], body, requireAuth(req, ["customer", "admin"]));
+  if (method === "GET" && path === "/api/drivers/me/performance") return handleGetDriverPerformance(requireAuth(req, ["driver"]));
+  if (method === "GET" && path === "/api/admin/drivers/performance") return handleListDriverPerformance(requireAuth(req, ["admin"]));
   const orderMatch = path.match(/^\/api\/orders\/([^/]+)$/);
   if (method === "GET" && orderMatch) return handleGetOrder(orderMatch[1]);
 

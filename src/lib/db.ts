@@ -298,6 +298,13 @@ function initSchema(db: Database) {
     "ALTER TABLE orders ADD COLUMN scheduled_delivery_at TEXT",
     // Per-tenant scheduling config — JSON: { enabled, windowMinutes, leadMinutes, daysAhead }.
     "ALTER TABLE tenants ADD COLUMN delivery_config TEXT DEFAULT '{}'",
+    // Driver performance scoring — on_time (1 on time / 0 late / NULL unscored) per delivered order.
+    "ALTER TABLE orders ADD COLUMN on_time INTEGER",
+    // Customer ratings for drivers (1–5) at delivery completion. One rating per order.
+    "CREATE TABLE IF NOT EXISTS order_ratings (" +
+      "id TEXT PRIMARY KEY, order_id TEXT NOT NULL UNIQUE, rated_type TEXT NOT NULL DEFAULT 'driver', " +
+      "rated_id TEXT NOT NULL, rating INTEGER NOT NULL, comment TEXT DEFAULT '', " +
+      "created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY (order_id) REFERENCES orders(id))",
   ]) {
     try { db.run(statement); } catch { /* column already exists */ }
   }
