@@ -1239,3 +1239,138 @@ export function handleMerchantAnalytics(url: URL, auth: { userId: string; role: 
     acquisition: { conversionPct: conversion },
   } });
 }
+
+// ── Merchant intake (call-free outreach) ─────────────────────────────────────
+const TEAM_INBOX = "greenexpress-db04ec79@ctomail.io";
+const APP_SITE_URL = "https://greenexpress.ctonew.app";
+const PILOT_CHECKOUT_URL = "https://buy.stripe.com/eVq3cvdWGbw1bNp9aZ97G0n";
+
+function buildConfirmationBody(dispensaryName: string, contactName: string): string {
+  const name = contactName && contactName.trim() ? contactName.trim() : "there";
+  return [
+    `Hi ${name},`,
+    "",
+    `Thanks for your interest in GreenExpress for ${dispensaryName || "your dispensary"}.`,
+    "",
+    "Here's what happens next:",
+    "1. Our team reviews your application and will reach out to arrange getting your storefront, CRM, and marketing set up.",
+    "2. You remain the licensed seller and set your own terms — GreenExpress is your technology and customer-acquisition layer.",
+    "",
+    `You can preview our plans at ${APP_SITE_URL}/pricing — the first two merchant tenants receive our introductory pilot rate.`,
+    "",
+    "We'll be in touch shortly.",
+    "",
+    "— The GreenExpress team",
+  ].join("\n");
+}
+
+function buildTeamNoticeBody(app: Record<string, unknown>): string {
+  return [
+    "New merchant application received (call-free outreach).",
+    "",
+    `Dispensary: ${app.dispensary_name}`,
+    `City/State: ${app.city || "-"}, ${app.state || "-"}`,
+    `Website: ${app.website || "-"}`,
+    `Contact: ${app.contact_name || "-"} <${app.contact_email}>`,
+    `Opted in to email: ${app.opted_in ? "yes" : "no"}`,
+    `Message: ${app.message || "-"}`,
+    "",
+    `Review in the admin panel, then send the queued confirmation via the monitored inbox (greenexpress-db04ec79@ctomail.io) and mark it sent.`,
+  ].join("\n");
+}
+
+// POST /api/applications — public intake form submit (no auth).
+export function handleCreateApplication(body: Record<string, unknown>): Response {
+  const dispensaryName = String(body.dispensary_name || "").trim();
+  const contactEmail = String(body.contact_email || "").trim().toLowerCase();
+  const optedIn = body.opted_in === true || body.opted_in === 1 || String(body.opted_in) === "true";
+  if (!dispensaryName) return error("dispensary_name is required", 400);
+  if (!contactEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contactEmail) || /\+/i.test(contactEmail)) {
+    return error("a valid contact email is required", 400);
+  }
+  if (!optedIn) return error("email opt-in is required", 400);
+
+  const db = getDb();
+  const id = generateId();
+
+  const tx = db.transaction(() => {
+    db.prepare(`INSERT INTO merchant_applications
+      (id, dispensary_name, city, state, website, contact_name, contact_email, message, opted_in, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')`)
+      .run(
+        id, dispensaryName,
+        String(body.city || ""), String(body.state || ""), String(body.website || ""),
+        String(body.contact_name || ""), contactEmail, String(body.message || ""),
+        optedIn ? 1 : 0
+      );
+
+    if (optedIn) {
+      // Queue the applicant confirmation email (sent by the team via the monitored inbox).
+      const app = db.prepare("SELECT * FROM merchant_applications WHERE id = ?").get(id) as Record<string, unknown>;
+      const confirmId = generateId();
+      db.prepare(`INSERT INTO outbound_emails
+        (id, application_id, to_email, subject, body, purpose, status)
+        VALUES (?, ?, ?, ?, ?, 'applicant_confirmation', 'pending')`)
+        .run(confirmId, id, contactEmail,
+          `We received your interest — ${dispensaryName}`,
+          buildConfirmationBody(String(app.dispensary_name), String(app.contact_name || "")));
+    }
+
+    // Always notify the GreenExpress team inbox so the team sees the application.
+    const noticeId = generateId();
+    db.prepare(`INSERT INTO outbound_emails
+      (id, application_id, to_email, subject, body, purpose, status)
+      VALUES (?, ?, ?, ?, ?, 'team_notice', 'pending')`)
+      .run(noticeId, id, TEAM_INBOX,
+        `New merchant application: ${dispensaryName}`,
+        buildTeamNoticeBody({ ...body, id } as Record<string, unknown>));
+  });
+  tx();
+
+  return json({ success: true, data: { id } }, 201);
+}
+
+// GET /api/admin/applications — list merchant applications (admin).
+export function handleAdminListMerchantApplications(url: URL): Response {
+  const db = getDb();
+  const status = url.searchParams.get("status") || "";
+  const rows = status
+    ? db.prepare("SELECT * FROM merchant_applications WHERE status = ? ORDER BY created_at DESC").all(status)
+    : db.prepare("SELECT * FROM merchant_applications ORDER BY created_at DESC").all();
+  return json({ success: true, data: rows });
+}
+
+// PUT /api/admin/applications/:id/status — update application status (admin).
+export function handleUpdateApplicationStatus(applicationId: string, body: Record<string, unknown>): Response {
+  const db = getDb();
+  const existing = db.prepare("SELECT * FROM merchant_applications WHERE id = ?").get(applicationId);
+  if (!existing) return error("Application not found", 404);
+  const allowed = ["new", "reviewed", "onboarded", "not_interested"];
+  const status = allowed.includes(String(body.status)) ? String(body.status) : "new";
+  const reviewedBy = String(body.reviewed_by || "admin").trim();
+  db.prepare(`UPDATE merchant_applications
+    SET status = ?, reviewed_at = datetime('now'), reviewed_by = ? WHERE id = ?`)
+    .run(status, reviewedBy, applicationId);
+  const updated = db.prepare("SELECT * FROM merchant_applications WHERE id = ?").get(applicationId);
+  return json({ success: true, data: updated });
+}
+
+// GET /api/admin/outbox — list queued notification emails (admin).
+export function handleAdminListOutbox(url: URL): Response {
+  const db = getDb();
+  const purpose = url.searchParams.get("purpose") || "";
+  const rows = purpose
+    ? db.prepare("SELECT * FROM outbound_emails WHERE purpose = ? ORDER BY created_at DESC").all(purpose)
+    : db.prepare("SELECT * FROM outbound_emails ORDER BY created_at DESC").all();
+  return json({ success: true, data: rows });
+}
+
+// PUT /api/admin/outbox/:id/sent — mark a queued email as sent (admin).
+export function handleAdminMarkEmailSent(emailId: string): Response {
+  const db = getDb();
+  const existing = db.prepare("SELECT * FROM outbound_emails WHERE id = ?").get(emailId);
+  if (!existing) return error("Email not found", 404);
+  db.prepare("UPDATE outbound_emails SET status = 'sent', sent_at = datetime('now') WHERE id = ?").run(emailId);
+  const updated = db.prepare("SELECT * FROM outbound_emails WHERE id = ?").get(emailId);
+  return json({ success: true, data: updated });
+}

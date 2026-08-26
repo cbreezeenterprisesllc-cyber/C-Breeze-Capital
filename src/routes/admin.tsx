@@ -10,6 +10,7 @@ const adminNav = [
   { label: "Dashboard", href: "/admin", icon: <Icon name="chart" size={18} />, active: true },
   { label: "Tenants", href: "/admin/tenants", icon: <Icon name="shop" size={18} /> },
   { label: "Revenue", href: "/admin/revenue", icon: <Icon name="money" size={18} /> },
+  { label: "Merchant Leads", href: "/admin/applications", icon: <Icon name="chat" size={18} /> },
   { label: "Support", href: "/admin/support", icon: <Icon name="chat" size={18} /> },
   { label: "Drivers", href: "/admin/drivers", icon: <Icon name="car" size={18} /> },
   { label: "Compliance", href: "/admin/compliance", icon: <Icon name="clipboard" size={18} /> },

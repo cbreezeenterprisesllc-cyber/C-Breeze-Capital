@@ -13,50 +13,69 @@ export const Route = createFileRoute("/pricing")({
 const TIERS = [
   {
     name: "Starter",
-    setup: "$999",
-    monthly: "$199/mo",
-    commission: "10%",
-    bestFor: "Single-location shops",
+    monthly: "Get in touch",
+    pilot: false,
+    note: "Digital profile & basics for single-location shops",
+    bestFor: "Single-location dispensaries",
     features: [
-      "White-label dispensary storefront",
-      "Real-time inventory management",
-      "Order processing & driver dispatch",
-      "Age verification & compliance tools",
-      "Email support within 24 hours",
+      "Digital dispensary profile",
+      "Menu integration",
+      "Customer inquiries",
+      "Basic analytics",
+      "Promotions",
     ],
-    link: "https://buy.stripe.com/dRmeVdbOybw17x90Et97G0g",
+    link: null,
     highlighted: false,
   },
   {
     name: "Growth",
-    setup: "$1,499",
-    monthly: "$349/mo",
-    commission: "7%",
-    bestFor: "Multi-location dispensaries",
+    monthly: "$299/mo",
+    pilotPrice: "$224.25/mo",
+    pilot: true,
+    note: "Introductory pilot offer for the first two tenants, then $299/mo",
+    bestFor: "Growing dispensaries",
     features: [
       "Everything in Starter, plus:",
-      "Multi-location management",
-      "Advanced analytics & reporting",
-      "Priority dispatch & routing",
-      "Dedicated account manager",
+      "Online-ordering integration (retailer remains the seller)",
+      "Loyalty program",
+      "CRM — customer records & messaging",
+      "SMS/email marketing capability",
+      "Advanced analytics",
     ],
-    link: "https://buy.stripe.com/14A5kDcSC1VrdVx9aZ97G0h",
+    pilotLink: "https://buy.stripe.com/eVq3cvdWGbw1bNp9aZ97G0n",
+    link: "https://buy.stripe.com/aFadR9g4OdE918Ldrf97G0m",
     highlighted: true,
   },
   {
-    name: "Enterprise",
-    setup: "$1,999",
-    monthly: "$499/mo",
-    commission: "5%",
-    bestFor: "Delivery networks & chains",
+    name: "Pro",
+    monthly: "$699/mo",
+    pilot: false,
+    note: "For dispensaries scaling their acquisition & retention",
+    bestFor: "Scaling dispensaries",
     features: [
       "Everything in Growth, plus:",
-      "Unlimited locations & users",
-      "Custom integrations & API access",
-      "Fleet management dashboard",
-      "Priority 24/7 support + SLA",
+      "Automated campaigns",
+      "Customer segmentation",
+      "Abandoned-cart marketing",
+      "Priority placement",
+      "Advanced reporting",
     ],
-    link: "https://buy.stripe.com/fZu00j5qa43zbNpbj797G0i",
+    link: null,
+    highlighted: false,
+  },
+  {
+    name: "Enterprise",
+    monthly: "$1,499+/mo",
+    pilot: false,
+    note: "Custom technology + white-label platform",
+    bestFor: "Chains & large operators",
+    features: [
+      "Everything in Pro, plus:",
+      "Custom technology & integrations",
+      "White-label platform",
+      "Dedicated support & success manager",
+    ],
+    link: null,
     highlighted: false,
   },
 ];
@@ -68,22 +87,25 @@ function PricingPage() {
         branding={{ title: "GreenExpress" }}
         items={[
           { label: "Home", href: "/" },
+          { label: "For Dispensaries", href: "/partner" },
           { label: "Pricing", href: "/pricing", active: true },
         ]}
       />
 
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "48px 24px" }}>
+      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "48px 24px" }}>
         <div style={{ textAlign: "center", marginBottom: 48 }}>
-          <div className="flex justify-center mb-2"><Icon name="heart" size={48} /></div>
+          <div className="flex justify-center mb-2"><Icon name="chart" size={48} /></div>
           <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 8 }}>
-            Simple, Transparent Pricing
+            Pricing for Your Dispensary
           </h1>
-          <p style={{ color: "var(--color-neutral-500)", maxWidth: 480, margin: "0 auto", fontSize: 18 }}>
-            One-time setup fee + monthly SaaS. Commission only on delivered orders. No hidden costs.
+          <p style={{ color: "var(--color-neutral-500)", maxWidth: 600, margin: "0 auto", fontSize: 18 }}>
+            GreenExpress is your technology + customer-acquisition layer. Flat monthly SaaS — no percentage of your
+            cannabis sales. You remain the licensed seller and compliance party; we bring the storefront, CRM,
+            marketing, and customers.
           </p>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 24 }}>
           {TIERS.map((tier) => (
             <Card
               key={tier.name}
@@ -98,20 +120,20 @@ function PricingPage() {
 
               <CardHeader>
                 <h2 style={{ fontSize: 20, fontWeight: 600 }}>{tier.name}</h2>
-                <p style={{ fontSize: 32, fontWeight: 700, margin: "8px 0 0" }}>{tier.setup}</p>
-                <p style={{ fontSize: 14, color: "var(--color-neutral-500)" }}>one-time setup</p>
+                <p style={{ fontSize: 28, fontWeight: 700, margin: "8px 0 0" }}>{tier.monthly}</p>
+                <p style={{ fontSize: 14, color: "var(--color-neutral-500)" }}>per month · flat rate</p>
               </CardHeader>
 
               <CardBody>
-                <div style={{ display: "flex", gap: 16, fontSize: 14, padding: "16px 0", margin: "16px 0", borderTop: "1px solid var(--color-neutral-200)", borderBottom: "1px solid var(--color-neutral-200)" }}>
-                  <div>
-                    <p style={{ fontWeight: 600 }}>{tier.monthly}</p>
-                    <p style={{ fontSize: 12, color: "var(--color-neutral-500)" }}>monthly SaaS</p>
-                  </div>
-                  <div style={{ borderLeft: "1px solid var(--color-neutral-200)", paddingLeft: 16 }}>
-                    <p style={{ fontWeight: 600 }}>{tier.commission}</p>
-                    <p style={{ fontSize: 12, color: "var(--color-neutral-500)" }}>per order</p>
-                  </div>
+                <div style={{ fontSize: 14, padding: "14px 0", margin: "12px 0", borderTop: "1px solid var(--color-neutral-200)", borderBottom: "1px solid var(--color-neutral-200)" }}>
+                  {tier.pilot ? (
+                    <>
+                      <p style={{ fontWeight: 700, color: "var(--color-primary-700)" }}>{tier.pilotPrice}</p>
+                      <p style={{ fontSize: 13, color: "var(--color-neutral-500)" }}>Introductory pilot — first two tenants, then {tier.monthly}</p>
+                    </>
+                  ) : (
+                    <p style={{ fontSize: 13, color: "var(--color-neutral-500)" }}>{tier.note}</p>
+                  )}
                 </div>
 
                 <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-primary-700)", marginBottom: 12, textTransform: "uppercase" }}>
@@ -127,20 +149,32 @@ function PricingPage() {
                   ))}
                 </ul>
 
-                <a href={tier.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-                  <Button variant={tier.highlighted ? "neon" : "outline"} fullWidth>
-                    Get Started &rarr;
-                  </Button>
-                </a>
+                {tier.highlighted ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <a href={tier.pilotLink} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                      <Button variant="neon" fullWidth>Start Pilot — $224.25/mo</Button>
+                    </a>
+                    <a href={tier.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                      <Button variant="outline" fullWidth>or Standard $299/mo</Button>
+                    </a>
+                  </div>
+                ) : (
+                  <a href={tier.link || "/pricing"} style={{ textDecoration: "none" }}>
+                    <Button variant={tier.highlighted ? "neon" : "outline"} fullWidth>
+                      {tier.link ? "Get Started &rarr;" : "Contact Us"}
+                    </Button>
+                  </a>
+                )}
               </CardBody>
             </Card>
           ))}
         </div>
 
         <div style={{ textAlign: "center", marginTop: 32, fontSize: 14, color: "var(--color-neutral-500)" }}>
-          Monthly billing starts after your 14-day onboarding period.{" "}
-          <Link to="/" style={{ color: "var(--color-primary-600)" }}>
-            Questions? Contact us
+          All plans include your online storefront. The first two tenants lock in the introductory pilot rate —
+          after the pilot, plans continue at the standard monthly rate.{" "}
+          <Link to="/dispensaries" style={{ color: "var(--color-primary-600)" }}>
+            See the marketplace
           </Link>
         </div>
       </main>

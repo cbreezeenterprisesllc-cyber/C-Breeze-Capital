@@ -72,6 +72,8 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
     handleListCustomers, handleAddCustomerTag, handleAddCustomerNote,
     handleGetLoyaltyProgram, handleUpdateLoyaltyProgram, handleListLoyaltyMembers,
     handleMerchantAnalytics,
+    handleCreateApplication, handleAdminListMerchantApplications, handleUpdateApplicationStatus,
+    handleAdminListOutbox, handleAdminMarkEmailSent,
   } = await import("./src/lib/api-handlers.ts");
 
   const {
@@ -218,6 +220,22 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
   if (method === "PUT" && path === "/api/loyalty/program") { if (!merchAuth) return json401(); return handleUpdateLoyaltyProgram(body, merchAuth); }
   if (method === "GET" && path === "/api/loyalty/members") { if (!merchAuth) return json401(); return handleListLoyaltyMembers(merchAuth); }
   if (method === "GET" && path === "/api/analytics" && (merchAuth)) return handleMerchantAnalytics(url, merchAuth);
+  // Merchant intake (call-free outreach) — public form submit + admin review/outbox
+  if (method === "POST" && path === "/api/applications") return handleCreateApplication(body);
+  if (method === "GET" && path === "/api/admin/applications") {
+    const a = requireAuth(req, ["admin"]); if (!a) return json401(); return handleAdminListMerchantApplications(url);
+  }
+  const appStatusMatch = path.match(/^\/api\/admin\/applications\/([^/]+)\/status$/);
+  if (method === "PUT" && appStatusMatch) {
+    const a = requireAuth(req, ["admin"]); if (!a) return json401(); return handleUpdateApplicationStatus(appStatusMatch[1], body);
+  }
+  if (method === "GET" && path === "/api/admin/outbox") {
+    const a = requireAuth(req, ["admin"]); if (!a) return json401(); return handleAdminListOutbox(url);
+  }
+  const outboxSentMatch = path.match(/^\/api\/admin\/outbox\/([^/]+)\/sent$/);
+  if (method === "PUT" && outboxSentMatch) {
+    const a = requireAuth(req, ["admin"]); if (!a) return json401(); return handleAdminMarkEmailSent(outboxSentMatch[1]);
+  }
   return null; // not an API route
 }
 
