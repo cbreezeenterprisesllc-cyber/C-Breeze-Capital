@@ -134,6 +134,7 @@ function Home() {
         branding={{ title: "GreenExpress" }}
         items={[
           { label: "Dispensaries", href: "/dispensaries" },
+          { label: "For Dispensaries", href: "/partner" },
           { label: "Drive", href: "/drive" },
           { label: "Pricing", href: "/pricing" },
           { label: "Cart", href: "/cart" },
@@ -162,36 +163,41 @@ function Home() {
 
             {/* Headline with gradient */}
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-[var(--font-heading)] text-white leading-[var(--leading-display)] mb-6 animate-fade-in-up">
-              Premium Cannabis
+              The Technology Layer
               <br />
-              <span className="gradient-text-amber">Delivered to Your Door</span>
+              <span className="gradient-text-amber">for Your Dispensary</span>
             </h1>
 
-            {/* Subtitle */}
+            {/* Subtitle — merchant-first */}
             <p className="text-lg md:text-xl text-white/70 max-w-2xl mx-auto mb-10 animate-fade-in-up delay-200">
-              Browse local dispensaries, shop their full menu, and get same-day delivery —
-              all from one place. 21+ only.
+              GreenExpress is your storefront, CRM, and marketing engine. We bring you more customers —
+              you remain the licensed seller and set your own terms.
             </p>
 
-            {/* CTA Buttons */}
+            {/* CTA Buttons — merchant-first, keep consumer path */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up delay-300">
-              <Link to="/dispensaries">
+              <Link to="/pricing">
                 <Button size="lg" variant="neon" glow className="text-lg px-10 py-4 inline-flex items-center gap-2">
-                  <Icon name="rocket" size={20} /> Browse Dispensaries
+                  <Icon name="rocket" size={20} /> Grow Your Dispensary
                 </Button>
               </Link>
-              <a href="#features">
+              <Link to="/partner">
+                <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10 hover:border-white/50 text-lg px-10 py-4 inline-flex items-center gap-2">
+                  <Icon name="chat" size={20} /> Partner With Us
+                </Button>
+              </Link>
+              <a href="#dispensaries">
                 <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10 hover:border-white/50 text-lg px-10 py-4">
-                  Learn More ↓
+                  Browse Dispensaries
                 </Button>
               </a>
             </div>
 
-            {/* Stats row */}
-            <div className="grid grid-cols-3 gap-8 max-w-lg mx-auto mt-16 animate-fade-in-up delay-500">
-              <StatCounter value={12} label="Dispensaries" />
-              <StatCounter value={200} label="Products" suffix="+" />
-              <StatCounter value={30} label="Min Delivery" suffix="m" />
+            {/* Stats row — tech/merchant metrics */}
+            <div className="grid grid-cols-3 gap-8 max-w-xl mx-auto mt-16 animate-fade-in-up delay-500">
+              <StatCounter value={4} label="Plans" />
+              <StatCounter value={299} label="Starting /mo" suffix="$" />
+              <StatCounter value={0} label="on Sales" suffix="%" />
             </div>
           </div>
 
@@ -208,7 +214,8 @@ function Home() {
               Why <span className="gradient-text-amber">GreenExpress</span>?
             </h2>
             <p className="text-lg text-[var(--color-neutral-500)] max-w-xl mx-auto">
-              The fastest, most reliable way to get premium cannabis delivered.
+              Everything you need to attract, convert, and retain customers — without building your own tech stack.
+              You stay the licensed seller and compliance party.
             </p>
           </div>
 
@@ -216,18 +223,18 @@ function Home() {
             {[
               {
                 icon: "rocket" as const,
-                title: "Lightning Fast Delivery",
-                desc: "Real-time tracking from dispensary to doorstep. Average delivery under 30 minutes.",
+                title: "Storefront & Ordering",
+                desc: "A branded online storefront with your menu, ordering, and order routing — you remain the seller of record.",
               },
               {
                 icon: "shield" as const,
-                title: "Age-Verified & Compliant",
-                desc: "Strict 21+ verification at checkout and delivery. Fully compliant with state regulations.",
+                title: "CRM & Marketing",
+                desc: "Customer records, messaging, promotions, loyalty, and campaigns to bring new customers and keep them coming back.",
               },
               {
-                icon: "leaf" as const,
-                title: "Curated Selection",
-                desc: "Browse menus from top local dispensaries with detailed strain info, effects, and reviews.",
+                icon: "chart" as const,
+                title: "Aggregate Analytics",
+                desc: "Clear, aggregate metrics on revenue, customers, retention, and demand — without exposing individual purchase data.",
               },
             ].map((feature, i) => (
               <div
@@ -311,15 +318,20 @@ function Home() {
           <LeafParticles count={6} />
           <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
             <h2 className="text-4xl md:text-5xl font-[var(--font-heading)] text-white mb-6 reveal">
-              Ready to <span className="gradient-text-amber">Elevate</span> Your Experience?
+              Ready to <span className="gradient-text-amber">Grow</span> Your Dispensary?
             </h2>
             <p className="text-lg text-white/70 max-w-xl mx-auto mb-10 reveal delay-200">
-              Join thousands of satisfied customers. Order now and get premium cannabis delivered in minutes.
+              Join the dispensaries using GreenExpress to win more customers and keep them coming back.
             </p>
-            <div className="reveal delay-300">
-              <Link to="/dispensaries">
+            <div className="reveal delay-300 flex flex-col sm:flex-row gap-4 justify-center">
+              <Link to="/pricing">
                 <Button size="lg" variant="neon" glow className="text-lg px-12 py-4 shadow-2xl inline-flex items-center gap-2">
-                  <Icon name="leaf" size={22} /> Start Browsing
+                  <Icon name="rocket" size={22} /> See Plans
+                </Button>
+              </Link>
+              <Link to="/dispensaries">
+                <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10 hover:border-white/50 text-lg px-12 py-4 inline-flex items-center gap-2">
+                  <Icon name="leaf" size={22} /> Browse Dispensaries
                 </Button>
               </Link>
             </div>

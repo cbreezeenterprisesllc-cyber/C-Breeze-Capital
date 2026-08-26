@@ -335,6 +335,24 @@ function initSchema(db: Database) {
       "id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, customer_email TEXT NOT NULL, points INTEGER DEFAULT 0, " +
       "updated_at TEXT DEFAULT (datetime('now')), UNIQUE(tenant_id, customer_email), " +
       "FOREIGN KEY (tenant_id) REFERENCES tenants(id))",
+    // ── Merchant intake (call-free outreach) ────────────────────────────────
+    // Dispensary applications expressing interest in GreenExpress. The applicant
+    // must explicitly opt in to be contacted by email. Status is managed by the
+    // GreenExpress team (new → reviewed → onboarded / not-interested).
+    "CREATE TABLE IF NOT EXISTS merchant_applications (" +
+      "id TEXT PRIMARY KEY, dispensary_name TEXT NOT NULL, city TEXT DEFAULT '', state TEXT DEFAULT '', " +
+      "website TEXT DEFAULT '', contact_name TEXT DEFAULT '', contact_email TEXT NOT NULL, " +
+      "message TEXT DEFAULT '', opted_in INTEGER DEFAULT 0, status TEXT DEFAULT 'new', " +
+      "created_at TEXT DEFAULT (datetime('now')), reviewed_at TEXT, reviewed_by TEXT DEFAULT '')",
+    // Email outbox: auto-response confirmation emails queued when an application
+    // is received. GreenExpress sends via the monitored business inbox (no SMTP/
+    // API key is available in this environment), so rows start 'pending' and the
+    // team marks them 'sent' after delivering via the monitored inbox.
+    "CREATE TABLE IF NOT EXISTS outbound_emails (" +
+      "id TEXT PRIMARY KEY, application_id TEXT NOT NULL, to_email TEXT NOT NULL, " +
+      "subject TEXT NOT NULL, body TEXT NOT NULL, purpose TEXT DEFAULT 'applicant_confirmation', " +
+      "status TEXT DEFAULT 'pending', created_at TEXT DEFAULT (datetime('now')), sent_at TEXT, " +
+      "FOREIGN KEY (application_id) REFERENCES merchant_applications(id))",
   ]) {
     try { db.run(statement); } catch { /* column already exists */ }
   }
