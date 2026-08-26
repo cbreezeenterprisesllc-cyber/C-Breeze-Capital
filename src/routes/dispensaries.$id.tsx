@@ -22,17 +22,31 @@ function StorefrontPage() {
   const [cat, setCat] = useState("");
   const [strain, setStrain] = useState("");
   const [askOpen, setAskOpen] = useState(false);
+  const [leadOpen, setLeadOpen] = useState(false);
+  const [leadSent, setLeadSent] = useState(false);
+  const [lead, setLead] = useState({ name: "", email: "", phone: "", message: "" });
   const { addItem, itemCount } = useCart();
+  const submitLead = async (e: any) => {
+    e.preventDefault();
+    if (!lead.email && !lead.phone) return;
+    await fetch("/api/leads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: id, ...lead, source: "storefront" }),
+    });
+    setLeadSent(true);
+  };
 
   useState(() => {
     fetch(`/api/tenants/${id}`).then(r=>r.json()).then(async tRes => {
       if (!tRes.success) { setLoading(false); return; }
       const tenant = tRes.data;
-      const [pRes, cRes] = await Promise.all([
+      const [pRes, cRes, promRes] = await Promise.all([
         fetch(`/api/products?tenantId=${tenant.id}`).then(r=>r.json()),
         fetch(`/api/categories?tenantId=${tenant.id}`).then(r=>r.json()),
+        fetch(`/api/promotions?tenant_id=${tenant.id}`).then(r=>r.json()).catch(()=>({success:false,data:[]})),
       ]);
-      setData({ tenant, products: pRes.success ? pRes.data : [], categories: cRes.success ? cRes.data : [] });
+      setData({ tenant, products: pRes.success ? pRes.data : [], categories: cRes.success ? cRes.data : [], promotions: promRes.success ? promRes.data : [] });
       setLoading(false);
     }).catch(() => setLoading(false));
   });
@@ -77,6 +91,41 @@ function StorefrontPage() {
             subtitle="Store team · Support"
             className="mb-8"
           />
+        )}
+        <div className="flex items-center gap-3 mb-8">
+          <Button size="sm" variant="outline" onClick={() => setLeadOpen(o => !o)}>
+            {leadOpen ? "Close" : "Join our list"}
+          </Button>
+          {leadSent && <Badge variant="success" size="sm">Thanks! We'll be in touch.</Badge>}
+        </div>
+        {leadOpen && !leadSent && (
+          <Card className="mb-8"><CardBody>
+            <h2 className="text-lg font-semibold mb-3">Stay in the loop</h2>
+            <form onSubmit={submitLead} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input className="px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="Name" value={lead.name} onChange={(e)=>setLead({...lead,name:e.target.value})}/>
+              <input className="px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="Email" type="email" value={lead.email} onChange={(e)=>setLead({...lead,email:e.target.value})}/>
+              <input className="px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="Phone" value={lead.phone} onChange={(e)=>setLead({...lead,phone:e.target.value})}/>
+              <input className="px-3 py-2 border border-gray-200 rounded-lg text-sm sm:col-span-2" placeholder="What are you interested in?" value={lead.message} onChange={(e)=>setLead({...lead,message:e.target.value})}/>
+              <div className="sm:col-span-2"><Button type="submit" variant="primary" size="sm">Send inquiry</Button></div>
+            </form>
+          </CardBody></Card>
+        )}
+        {data.promotions && data.promotions.length > 0 && (
+          <Card className="mb-8"><CardBody>
+            <div className="flex items-center gap-2 mb-3">
+              <Icon name="celebration" size={18} />
+              <h2 className="text-lg font-semibold text-gray-800">Current deals</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {data.promotions.map((pr:any)=>(
+                <div key={pr.id} className="border border-gray-100 rounded-lg p-3">
+                  <p className="font-semibold text-sm">{pr.title}</p>
+                  {pr.description && <p className="text-xs text-gray-500 mt-1">{pr.description}</p>}
+                  <div className="mt-2"><Badge variant="primary">{pr.discount_type==="percent" ? `${pr.discount_value}% off` : `$${pr.discount_value} off`}</Badge>{pr.code && <Badge variant="neutral"> {pr.code}</Badge>}</div>
+                </div>
+              ))}
+            </div>
+          </CardBody></Card>
         )}
         {!hasHours ? null : (
           <Card className="mb-8"><CardBody>

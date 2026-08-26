@@ -67,6 +67,11 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
     handleAdminListApplications, handleAdminGetApplication,
     handleAdminApproveApplication, handleAdminRejectApplication,
     handleAdminListDrivers, handleAdminSuspendDriver, handleDriverAvailability,
+    handleListPromotions, handleCreatePromotion, handleUpdatePromotion, handleDeletePromotion,
+    handleCreateLead, handleListLeads, handleUpdateLeadStatus,
+    handleListCustomers, handleAddCustomerTag, handleAddCustomerNote,
+    handleGetLoyaltyProgram, handleUpdateLoyaltyProgram, handleListLoyaltyMembers,
+    handleMerchantAnalytics,
   } = await import("./src/lib/api-handlers.ts");
 
   const {
@@ -195,6 +200,24 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
     return handleMarkRead(convReadMatch[1], convAuth);
   }
 
+  // ── Merchant / marketing layer (Phase 1) ─────────────────────────────
+  const merchAuth = requireAuth(req, ["merchant", "admin"]);
+  if (method === "GET" && path === "/api/promotions") return handleListPromotions(url, merchAuth);
+  if (method === "POST" && path === "/api/promotions") { if (!merchAuth) return json401(); return handleCreatePromotion(body, merchAuth); }
+  const promMatch = path.match(/^\/api\/promotions\/([^/]+)$/);
+  if (promMatch && method === "PUT") { if (!merchAuth) return json401(); return handleUpdatePromotion(promMatch[1], body, merchAuth); }
+  if (promMatch && method === "DELETE") { if (!merchAuth) return json401(); return handleDeletePromotion(promMatch[1], merchAuth); }
+  if (method === "POST" && path === "/api/leads") return handleCreateLead(body);
+  if (method === "GET" && path === "/api/leads") { if (!merchAuth) return json401(); return handleListLeads(url, merchAuth); }
+  const leadMatch = path.match(/^\/api\/leads\/([^/]+)$/);
+  if (leadMatch && method === "PUT") { if (!merchAuth) return json401(); return handleUpdateLeadStatus(leadMatch[1], body, merchAuth); }
+  if (method === "GET" && path === "/api/customers") { if (!merchAuth) return json401(); return handleListCustomers(merchAuth); }
+  if (method === "POST" && path === "/api/customers/tags") { if (!merchAuth) return json401(); return handleAddCustomerTag(body, merchAuth); }
+  if (method === "POST" && path === "/api/customers/notes") { if (!merchAuth) return json401(); return handleAddCustomerNote(body, merchAuth); }
+  if (method === "GET" && path === "/api/loyalty/program") { if (!merchAuth) return json401(); return handleGetLoyaltyProgram(merchAuth); }
+  if (method === "PUT" && path === "/api/loyalty/program") { if (!merchAuth) return json401(); return handleUpdateLoyaltyProgram(body, merchAuth); }
+  if (method === "GET" && path === "/api/loyalty/members") { if (!merchAuth) return json401(); return handleListLoyaltyMembers(merchAuth); }
+  if (method === "GET" && path === "/api/analytics" && (merchAuth)) return handleMerchantAnalytics(url, merchAuth);
   return null; // not an API route
 }
 
