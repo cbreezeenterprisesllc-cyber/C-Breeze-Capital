@@ -938,6 +938,29 @@ export async function handleCreateCheckoutSession(body: Record<string, unknown>)
     return error("Failed to create checkout session", 500);
   }
 }
+// POST /api/pricing/checkout — SaaS subscription checkout for merchants
+// (GreenExpress Pilot $224.25/mo / Growth $299/mo). Prices are ensured
+// idempotently by lookup_key inside src/lib/stripe.ts — never hardcoded here.
+export async function handleCreatePricingCheckout(body: Record<string, unknown>): Promise<Response> {
+  const plan = String(body.plan ?? "").trim();
+  if (plan !== "pilot" && plan !== "growth") {
+    return error("plan must be 'pilot' or 'growth'", 400);
+  }
+  const { stripe, createSubscriptionCheckoutSession } = await import("./stripe");
+  if (!stripe) return error("Payments not configured", 500);
+  const siteBase = Bun.env.SITE_URL || "https://ef5d2c4ae9113753571b85ddf95ab4dd.ctonew.app";
+  try {
+    const session = await createSubscriptionCheckoutSession({
+      plan,
+      successUrl: `${siteBase}/partner?checkout=success`,
+      cancelUrl: `${siteBase}/pricing?checkout=cancel`,
+    });
+    return json({ success: true, data: { url: session.url, sessionId: session.id } });
+  } catch (err) {
+    console.error("Pricing checkout error:", err);
+    return error("We couldn't start checkout right now. Please try again in a moment.", 500);
+  }
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // MERCHANT / MARKETING LAYER — Phase 1 (tech-layer pivot)
