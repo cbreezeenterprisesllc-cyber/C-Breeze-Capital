@@ -107,8 +107,11 @@ function initSchema(db: Database) {
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
       customer_id TEXT NOT NULL,
+      -- Real dispatch pipeline (src/lib/dispatch.ts). 'confirmed' and 'preparing'
+      -- are legacy values kept for rows/clients written before the pipeline landed;
+      -- they normalise to 'assigned' and 'ready' on read.
       status TEXT NOT NULL DEFAULT 'pending'
-        CHECK(status IN ('pending','confirmed','preparing','in_transit','delivered','cancelled')),
+        CHECK(status IN ('pending','assigned','ready','picked_up','in_transit','delivered','cancelled','confirmed','preparing')),
       total REAL NOT NULL,
       delivery_fee REAL DEFAULT 0,
       tax REAL DEFAULT 0,
@@ -353,7 +356,89 @@ function initSchema(db: Database) {
       "subject TEXT NOT NULL, body TEXT NOT NULL, purpose TEXT DEFAULT 'applicant_confirmation', " +
       "status TEXT DEFAULT 'pending', created_at TEXT DEFAULT (datetime('now')), sent_at TEXT, " +
       "FOREIGN KEY (application_id) REFERENCES merchant_applications(id))",
+    // ── Real dispatch pipeline (Option B: the retailer's own delivery staff) ──
+    // Per-stage timestamps on the order itself, so the tracking page can show a
+    // timeline without scanning the event log. See src/lib/dispatch.ts.
+    "ALTER TABLE orders ADD COLUMN claimed_at TEXT",
+    "ALTER TABLE orders ADD COLUMN ready_at TEXT",
+    "ALTER TABLE orders ADD COLUMN picked_up_at TEXT",
+    "ALTER TABLE orders ADD COLUMN cancelled_at TEXT",
+    // Display name of the assigned delivery staff member (denormalised so the
+    // customer-facing tracking page never has to join users).
+    "ALTER TABLE orders ADD COLUMN staff_name TEXT DEFAULT ''",
+    // Append-only audit trail: one row per pipeline transition, with actor.
+    "CREATE TABLE IF NOT EXISTS order_status_events (" +
+      "id TEXT PRIMARY KEY, order_id TEXT NOT NULL, status TEXT NOT NULL, previous_status TEXT DEFAULT '', " +
+      "actor_id TEXT, actor_name TEXT DEFAULT '', actor_role TEXT DEFAULT '', note TEXT DEFAULT '', " +
+      "created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY (order_id) REFERENCES orders(id))",
+    "CREATE INDEX IF NOT EXISTS idx_order_events_order ON order_status_events(order_id, created_at)",
   ]) {
     try { db.run(statement); } catch { /* column already exists */ }
   }
+  migrateOrderStatusCheck(db);
+}
+
+/**
+ * The original `orders.status` CHECK only allowed
+ * pending/confirmed/preparing/in_transit/delivered/cancelled. The real dispatch
+ * pipeline needs `assigned`, `ready` and `picked_up` too, and SQLite cannot alter
+ * a CHECK constraint in place — so the table is rebuilt once, copying every
+ * column as it currently exists (drift-proof: the column list comes from
+ * PRAGMA table_info, not from a hard-coded schema).
+ *
+ * Idempotent: the rebuild only runs while the live CHECK lacks 'picked_up'.
+ * Legacy values ('confirmed', 'preparing') stay allowed so old rows and old
+ * clients keep working; they are normalised to assigned/ready on read.
+ */
+function migrateOrderStatusCheck(db: Database) {
+  const table = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'orders'")
+    .get() as { sql?: string } | undefined;
+  if (!table?.sql || table.sql.includes("'picked_up'")) return;
+
+  const columns = db.prepare("PRAGMA table_info(orders)").all() as Array<{
+    name: string;
+    type: string;
+    notnull: number;
+    dflt_value: string | null;
+    pk: number;
+  }>;
+  if (!columns.length) return;
+
+  const statusCheck =
+    "CHECK(status IN ('pending','assigned','ready','picked_up','in_transit','delivered','cancelled','confirmed','preparing'))";
+
+  const defs = columns.map((c) => {
+    let def = `"${c.name}" ${c.type || "TEXT"}`;
+    if (c.pk) def += " PRIMARY KEY";
+    if (c.notnull && !c.pk) def += " NOT NULL";
+    if (c.dflt_value !== null) def += ` DEFAULT ${c.dflt_value}`;
+    if (c.name === "status") def += ` ${statusCheck}`;
+    return def;
+  });
+  // Preserve the original foreign keys (not recoverable from PRAGMA).
+  defs.push(
+    "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+    "FOREIGN KEY (customer_id) REFERENCES users(id)",
+    "FOREIGN KEY (driver_id) REFERENCES users(id)",
+  );
+
+  const columnList = columns.map((c) => `"${c.name}"`).join(", ");
+  db.run("PRAGMA foreign_keys = OFF");
+  try {
+    db.transaction(() => {
+      db.run(`CREATE TABLE orders_dispatch_rebuild (${defs.join(", ")})`);
+      db.run(`INSERT INTO orders_dispatch_rebuild (${columnList}) SELECT ${columnList} FROM orders`);
+      db.run("DROP TABLE orders");
+      db.run("ALTER TABLE orders_dispatch_rebuild RENAME TO orders");
+    })();
+  } finally {
+    db.run("PRAGMA foreign_keys = ON");
+  }
+  // Indexes went away with the old table — recreate the ones the app relies on.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_orders_tenant ON orders(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+  `);
 }

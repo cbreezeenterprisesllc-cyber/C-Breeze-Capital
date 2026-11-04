@@ -3,6 +3,15 @@ import { hashPassword, verifyPassword, generateToken, generateId } from "~/lib/a
 import { sanitizeHours } from "~/lib/store-hours";
 import { computeWindows, parseDeliveryConfig, sanitizeDeliveryConfig } from "~/lib/delivery-windows";
 import { computeOnTime, evaluateDriver } from "~/lib/driverPerformance";
+import {
+  type DispatchStatus,
+  STAGE_TIMESTAMP_COLUMN,
+  allowedNext,
+  estimateWindow,
+  isPickupFulfillment,
+  normalizeStatus,
+  STATUS_LABELS,
+} from "~/lib/dispatch";
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -388,43 +397,213 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
   return json({ success: true, data: { ...order as Record<string, unknown>, items: orderItemsResult } }, 201);
 }
 
+// ─── Real dispatch pipeline (Option B: the retailer's own delivery staff) ─────
+// GreenExpress never takes custody of product. Every transition below is a
+// retailer action recorded against the order: status + a timestamp column + an
+// append-only row in order_status_events. See src/lib/dispatch.ts for the states.
+type Actor = { userId: string; role: string; tenantId?: string } | null;
+
+function actorName(db: ReturnType<typeof getDb>, auth: Actor): string {
+  if (!auth) return "";
+  const user = db.prepare("SELECT name FROM users WHERE id = ?").get(auth.userId) as { name?: string } | undefined;
+  return user?.name || "";
+}
+
+function recordOrderEvent(
+  db: ReturnType<typeof getDb>,
+  orderId: string,
+  from: string,
+  to: string,
+  auth: Actor,
+  note = "",
+): void {
+  db.prepare(
+    "INSERT INTO order_status_events (id, order_id, status, previous_status, actor_id, actor_name, actor_role, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(generateId(), orderId, to, from || "", auth?.userId ?? null, actorName(db, auth), auth?.role ?? "", note);
+}
+
+/**
+ * Move an order to `to`, stamping the stage timestamp column and writing the
+ * audit event. `enforce` rejects illegal jumps (the dispatch endpoint does; the
+ * legacy /status endpoint stays permissive so older clients keep working).
+ */
+function transitionOrder(
+  db: ReturnType<typeof getDb>,
+  order: Record<string, any>,
+  to: DispatchStatus,
+  auth: Actor,
+  note = "",
+  enforce = true,
+): { ok: true } | { ok: false; error: string } {
+  const from = normalizeStatus(order.status);
+  if (enforce && from !== to && !allowedNext(from, order.fulfillment_type).includes(to)) {
+    return {
+      ok: false,
+      error: `Cannot move this order from "${STATUS_LABELS[from] ?? from}" to "${STATUS_LABELS[to] ?? to}".`,
+    };
+  }
+  const column = STAGE_TIMESTAMP_COLUMN[to];
+  const sets = ["status = ?", "updated_at = datetime('now')"];
+  if (column && column !== "created_at") sets.push(`${column} = datetime('now')`);
+  db.prepare(`UPDATE orders SET ${sets.join(", ")} WHERE id = ?`).run(to, order.id);
+  if (from !== to) recordOrderEvent(db, order.id, from, to, auth, note);
+  return { ok: true };
+}
+
+/** The order payload the tracking page and the merchant dashboard both consume. */
+function buildOrderPayload(db: ReturnType<typeof getDb>, orderId: string): Record<string, unknown> | null {
+  const order = db
+    .prepare("SELECT o.*, u.name as customer_name FROM orders o JOIN users u ON o.customer_id = u.id WHERE o.id = ?")
+    .get(orderId) as Record<string, any> | undefined;
+  if (!order) return null;
+  const items = db.prepare("SELECT * FROM order_items WHERE order_id = ?").all(orderId);
+  const rating = db.prepare("SELECT rating FROM order_ratings WHERE order_id = ?").get(orderId) as
+    | Record<string, unknown>
+    | undefined;
+  const events = db
+    .prepare("SELECT status, previous_status, actor_name, actor_role, note, created_at FROM order_status_events WHERE order_id = ? ORDER BY created_at ASC, rowid ASC")
+    .all(orderId);
+  const dispatchStatus = normalizeStatus(order.status);
+  const window = estimateWindow(order);
+  return {
+    ...order,
+    dispatch_status: dispatchStatus,
+    status_label: STATUS_LABELS[dispatchStatus] ?? dispatchStatus,
+    next_states: allowedNext(dispatchStatus, order.fulfillment_type),
+    is_pickup: isPickupFulfillment(order.fulfillment_type),
+    items,
+    my_rating: rating ? rating.rating : null,
+    events,
+    window,
+  };
+}
+
 // GET /api/orders/:id
 export function handleGetOrder(orderId: string): Response {
   const db = getDb();
-  const order = db.prepare("SELECT o.*, u.name as customer_name FROM orders o JOIN users u ON o.customer_id = u.id WHERE o.id = ?").get(orderId) as Record<string, unknown> | undefined;
-  if (!order) return error("Order not found", 404);
-
-  const items = db.prepare("SELECT * FROM order_items WHERE order_id = ?").all(orderId);
-  // my_rating lets the customer tracking page show the "already rated" state on reload.
-  const rating = db.prepare("SELECT rating FROM order_ratings WHERE order_id = ?").get(orderId) as Record<string, unknown> | undefined;
-  return json({ success: true, data: { ...order, items, my_rating: rating ? rating.rating : null } });
+  const payload = buildOrderPayload(db, orderId);
+  if (!payload) return error("Order not found", 404);
+  return json({ success: true, data: payload });
 }
 
-// PUT /api/orders/:id/status
-export function handleUpdateOrderStatus(orderId: string, body: Record<string, unknown>): Response {
-  const { status } = body as { status?: string };
-  const validStatuses = ["pending", "confirmed", "preparing", "in_transit", "delivered", "cancelled"];
-
-  if (!status || !validStatuses.includes(status)) {
+// PUT /api/orders/:id/status — legacy status setter (kept for older clients).
+// It now writes the same stage timestamps + audit events as the dispatch
+// endpoint, but does not enforce transition ordering. New UI uses
+// POST /api/orders/:id/dispatch.
+export function handleUpdateOrderStatus(
+  orderId: string,
+  body: Record<string, unknown>,
+  auth: Actor = null,
+): Response {
+  const raw = String(body.status ?? "");
+  const validStatuses = ["pending", "assigned", "ready", "picked_up", "in_transit", "delivered", "cancelled", "confirmed", "preparing"];
+  if (!raw || !validStatuses.includes(raw)) {
     return error(`Status must be one of: ${validStatuses.join(", ")}`);
   }
-
   const db = getDb();
-  const existing = db.prepare("SELECT id FROM orders WHERE id = ?").get(orderId);
-  if (!existing) return error("Order not found", 404);
+  const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId) as Record<string, any> | undefined;
+  if (!order) return error("Order not found", 404);
 
-  const updates = ["status = ?", "updated_at = datetime('now')"];
-  const values: unknown[] = [status];
+  const result = transitionOrder(db, order, normalizeStatus(raw), auth, "", false);
+  if (!result.ok) return error(result.error, 409);
+  return json({ success: true, data: buildOrderPayload(db, orderId) });
+}
 
-  if (status === "delivered") {
-    updates.push("delivered_at = datetime('now')");
+/**
+ * POST /api/orders/:id/dispatch — the real retailer-side fulfilment action.
+ * body.action: assign | claim | ready | picked_up | in_transit | delivered | cancel
+ * body.staffId: required for `assign` (a user of the same dispensary).
+ * `delivered` additionally requires the door-step ID + signature payload (the
+ * licensed seller's compliance step), handled by handleDeliverOrder.
+ */
+export function handleDispatchAction(orderId: string, body: Record<string, unknown>, auth: Actor): Response {
+  if (!auth) return error("Unauthorized", 401);
+  const db = getDb();
+  const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId) as Record<string, any> | undefined;
+  if (!order) return error("Order not found", 404);
+
+  const action = String(body.action ?? "");
+  const target: DispatchStatus | undefined = (
+    {
+      assign: "assigned",
+      claim: "assigned",
+      ready: "ready",
+      picked_up: "picked_up",
+      in_transit: "in_transit",
+      delivered: "delivered",
+      cancel: "cancelled",
+    } as Record<string, DispatchStatus>
+  )[action];
+  if (!target) {
+    return error("action must be one of: assign, claim, ready, picked_up, in_transit, delivered, cancel");
   }
 
-  values.push(orderId);
-  db.prepare(`UPDATE orders SET ${updates.join(", ")} WHERE id = ?`).run(...values);
+  // Authorisation: the order's own dispensary (merchant), the assigned delivery
+  // staff member, or platform admin. GreenExpress staff never fulfil orders.
+  const isMerchant = auth.role === "merchant" && order.tenant_id === auth.tenantId;
+  const isAdmin = auth.role === "admin";
+  const isAssignedStaff = !!order.driver_id && order.driver_id === auth.userId;
+  if (!isMerchant && !isAdmin && !isAssignedStaff) return error("Forbidden", 403);
 
-  const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
-  return json({ success: true, data: order });
+  const from = normalizeStatus(order.status);
+  const note = String(body.note ?? "").slice(0, 300);
+
+  if (target === "assigned") {
+    if (from !== "pending" && from !== "assigned") {
+      return error(`Delivery staff can only be assigned before the order is packed (current: ${from}).`, 409);
+    }
+    const staffId = action === "claim" ? auth.userId : String(body.staffId ?? "");
+    if (!staffId) return error("staffId is required to assign delivery staff");
+    const staff = db.prepare("SELECT id, name, role, tenant_id FROM users WHERE id = ?").get(staffId) as
+      | Record<string, any>
+      | undefined;
+    if (!staff) return error("Delivery staff member not found", 404);
+    if (!isAdmin && staff.tenant_id !== order.tenant_id) {
+      return error("That person is not a staff member of this dispensary", 403);
+    }
+    db.prepare("UPDATE orders SET driver_id = ?, staff_name = ? WHERE id = ?").run(staff.id, staff.name, orderId);
+    const result = transitionOrder(
+      db,
+      order,
+      "assigned",
+      auth,
+      note || (action === "claim" ? "Claimed by delivery staff" : `Assigned to ${staff.name}`),
+      false,
+    );
+    if (!result.ok) return error(result.error, 409);
+    return json({ success: true, data: buildOrderPayload(db, orderId) });
+  }
+
+  if (target === "delivered") {
+    // Compliance stays with the licensed retailer: door-step ID check + signature.
+    const delivered = handleDeliverOrder(orderId, body, auth);
+    if (delivered.status >= 400) return delivered;
+    return json({ success: true, data: buildOrderPayload(db, orderId) });
+  }
+
+  const result = transitionOrder(db, order, target, auth, note);
+  if (!result.ok) return error(result.error, 409);
+  return json({ success: true, data: buildOrderPayload(db, orderId) });
+}
+
+// GET /api/merchant/staff — people at this dispensary who can run deliveries.
+// Option B: they are the retailer's own employees, not a GreenExpress fleet.
+export function handleListMerchantStaff(url: URL, auth: Actor): Response {
+  if (!auth) return error("Unauthorized", 401);
+  if (auth.role !== "merchant" && auth.role !== "admin") return error("Forbidden", 403);
+  const tenantId = auth.role === "admin" ? url.searchParams.get("tenantId") : auth.tenantId;
+  if (!tenantId) return error("tenantId is required");
+  const db = getDb();
+  const staff = db
+    .prepare(
+      `SELECT u.id, u.name, u.email, u.role, d.id as driver_record_id, d.rating, d.total_deliveries, d.is_active
+         FROM users u
+         LEFT JOIN drivers d ON d.email = u.email
+        WHERE u.tenant_id = ? AND u.role IN ('merchant', 'driver')
+        ORDER BY u.name`
+    )
+    .all(tenantId);
+  return json({ success: true, data: staff });
 }
 
 // PUT /api/orders/:id/deliver — REAL door-step ID verification + signature capture.
@@ -464,6 +643,7 @@ export function handleDeliverOrder(
       verified_by=?, verified_at=datetime('now'), updated_at=datetime('now')
      WHERE id=?`
   ).run(String(idDocumentType), lastFour, String(idDob), String(idName), sig, auth.userId, orderId);
+  recordOrderEvent(db, orderId, normalizeStatus(order.status), "delivered", auth, "Delivered — ID verified, signature captured");
   // Score on-time performance for this delivered order (assigned driver only).
   if (order.driver_id) {
     const fresh = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId) as Record<string, any>;
@@ -582,6 +762,7 @@ export function handleStartDelivery(
   db.prepare(
     `UPDATE orders SET status='in_transit', start_selfie=?, started_at=datetime('now'), updated_at=datetime('now') WHERE id=?`
   ).run(selfie, orderId);
+  recordOrderEvent(db, orderId, normalizeStatus(order.status), "in_transit", auth, "Delivery started — staff selfie check-in");
   const updated = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
   return json({ success: true, data: updated }, 201);
 }
@@ -629,7 +810,7 @@ export function handleListAvailableOrders(
   }
   if (!isFinite(lat) || !isFinite(lng)) return json({ success: true, data: [] });
   const open = db.prepare(
-    "SELECT o.*, t.name as dispensary, t.lat as t_lat, t.lng as t_lng FROM orders o JOIN tenants t ON o.tenant_id = t.id WHERE o.driver_id IS NULL AND o.status IN ('pending','confirmed','preparing') AND (o.fulfillment_type IS NULL OR o.fulfillment_type = 'delivery') ORDER BY o.created_at DESC LIMIT 50"
+    "SELECT o.*, t.name as dispensary, t.lat as t_lat, t.lng as t_lng FROM orders o JOIN tenants t ON o.tenant_id = t.id WHERE o.driver_id IS NULL AND o.status IN ('pending','confirmed','preparing','assigned','ready') AND (o.fulfillment_type IS NULL OR o.fulfillment_type = 'delivery') ORDER BY o.created_at DESC LIMIT 50"
   ).all();
   const data = open.map((o: any) => {
     if (o.t_lat == null || o.t_lng == null) return null;
@@ -660,8 +841,13 @@ export function handleClaimOrder(orderId: string, auth: { userId: string; role: 
   if (!order) return error("Order not found", 404);
   if (order.driver_id) return error("This order is already claimed", 409);
   if (order.status === "delivered" || order.status === "cancelled") return error("This order is not available to claim", 409);
-  const res = db.prepare("UPDATE orders SET driver_id = ?, status = CASE WHEN status = 'pending' THEN 'confirmed' ELSE status END, updated_at = datetime('now') WHERE id = ? AND driver_id IS NULL").run(auth.userId, orderId);
+  const res = db.prepare(
+    `UPDATE orders SET driver_id = ?, staff_name = ?,
+       status = 'assigned', claimed_at = COALESCE(claimed_at, datetime('now')), updated_at = datetime('now')
+     WHERE id = ? AND driver_id IS NULL`
+  ).run(auth.userId, actorName(db, auth), orderId);
   if (res.changes === 0) return error("This order was just claimed by another driver", 409);
+  recordOrderEvent(db, orderId, normalizeStatus(order.status), "assigned", auth, "Claimed by delivery staff");
   const updated = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
   return json({ success: true, data: updated });
   }
@@ -702,11 +888,11 @@ export function handleOrderStream(url: URL): Response {
           let orders;
           if (tenantId) {
             orders = db.prepare(
-              "SELECT o.*, u.name as customer_name FROM orders o JOIN users u ON o.customer_id = u.id WHERE o.tenant_id = ? AND o.status IN ('pending', 'confirmed', 'preparing', 'in_transit') ORDER BY o.created_at DESC"
+              "SELECT o.*, u.name as customer_name FROM orders o JOIN users u ON o.customer_id = u.id WHERE o.tenant_id = ? AND o.status IN ('pending','assigned','ready','picked_up','in_transit','confirmed','preparing') ORDER BY o.created_at DESC"
             ).all(tenantId);
           } else {
             orders = db.prepare(
-              "SELECT o.*, u.name as customer_name FROM orders o JOIN users u ON o.customer_id = u.id WHERE o.status IN ('pending', 'confirmed', 'preparing', 'in_transit') ORDER BY o.created_at DESC"
+              "SELECT o.*, u.name as customer_name FROM orders o JOIN users u ON o.customer_id = u.id WHERE o.status IN ('pending','assigned','ready','picked_up','in_transit','confirmed','preparing') ORDER BY o.created_at DESC"
             ).all();
           }
           controller.enqueue("data: " + JSON.stringify({ type: "orders", data: orders }) + "\n\n");
