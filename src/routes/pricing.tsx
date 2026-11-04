@@ -1,4 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { apiFetch } from "~/lib/api-config";
 import { TopbarNav } from "~/components/Navigation";
 import { Button } from "~/components/Button";
 import { Card, CardHeader, CardBody } from "~/components/Card";
@@ -42,8 +44,8 @@ const TIERS = [
       "SMS/email marketing capability",
       "Advanced analytics",
     ],
-    pilotLink: "https://buy.stripe.com/eVq3cvdWGbw1bNp9aZ97G0n",
-    link: "https://buy.stripe.com/aFadR9g4OdE918Ldrf97G0m",
+    plan: "growth",
+    link: null,
     highlighted: true,
   },
   {
@@ -81,6 +83,40 @@ const TIERS = [
 ];
 
 function PricingPage() {
+  const [busyPlan, setBusyPlan] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Read after mount only — SSR has no window, so rendering this during render
+  // would produce a hydration mismatch.
+  const [checkoutCancelled, setCheckoutCancelled] = useState(false);
+  useEffect(() => {
+    setCheckoutCancelled(
+      new URLSearchParams(window.location.search).get("checkout") === "cancel",
+    );
+  }, []);
+
+  const startCheckout = async (plan: "pilot" | "growth") => {
+    setBusyPlan(plan);
+    setCheckoutError(null);
+    try {
+      const res = await apiFetch("/api/pricing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json();
+      if (data.success && data.data?.url) {
+        window.location.assign(data.data.url);
+        return;
+      }
+      setCheckoutError(data.error || "We couldn't start checkout. Please try again.");
+    } catch {
+      setCheckoutError("Network error. Please try again.");
+    } finally {
+      setBusyPlan(null);
+    }
+  };
+
   return (
     <div style={{ minHeight: "100dvh", background: "var(--surface-secondary)" }}>
       <TopbarNav
@@ -93,6 +129,11 @@ function PricingPage() {
       />
 
       <main style={{ maxWidth: 1200, margin: "0 auto", padding: "48px 24px" }}>
+        {checkoutCancelled && (
+          <div style={{ marginBottom: 24, padding: "14px 18px", borderRadius: 12, background: "#FFF7E6", border: "1px solid #F5B942", color: "#7A4F01", fontSize: 15, textAlign: "center" }}>
+            Checkout cancelled — no charge was made. Ready whenever you are.
+          </div>
+        )}
         <div style={{ textAlign: "center", marginBottom: 48 }}>
           <div className="flex justify-center mb-2"><Icon name="chart" size={48} /></div>
           <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 8 }}>
@@ -151,12 +192,27 @@ function PricingPage() {
 
                 {tier.highlighted ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <a href={tier.pilotLink} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-                      <Button variant="neon" fullWidth>Start Pilot — $224.25/mo</Button>
-                    </a>
-                    <a href={tier.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-                      <Button variant="outline" fullWidth>or Standard $299/mo</Button>
-                    </a>
+                    <Button
+                      variant="neon"
+                      fullWidth
+                      loading={busyPlan === "pilot"}
+                      onClick={() => startCheckout("pilot")}
+                    >
+                      Go Green — Pilot $224.25/mo
+                    </Button>
+                    <Button
+                      variant="outline"
+                      fullWidth
+                      loading={busyPlan === "growth"}
+                      onClick={() => startCheckout("growth")}
+                    >
+                      Go Green — Standard $299/mo
+                    </Button>
+                    {checkoutError && (
+                      <p style={{ color: "var(--color-error)", fontSize: 13, textAlign: "center", margin: "4px 0 0" }}>
+                        {checkoutError}
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <a href={tier.link || "/pricing"} style={{ textDecoration: "none" }}>

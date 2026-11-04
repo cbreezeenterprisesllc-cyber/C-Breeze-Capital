@@ -1,6 +1,6 @@
 import { apiFetch } from "~/lib/api-config";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TopbarNav } from "~/components/Navigation";
 import { Button } from "~/components/Button";
 import { Card, CardHeader, CardBody } from "~/components/Card";
@@ -62,6 +62,15 @@ function PartnerPage() {
     }
   };
 
+  // Read after mount only — SSR has no window, so rendering this during render
+  // would produce a hydration mismatch.
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+  useEffect(() => {
+    setCheckoutSuccess(
+      new URLSearchParams(window.location.search).get("checkout") === "success",
+    );
+  }, []);
+
   return (
     <div style={{ minHeight: "100dvh", background: "var(--surface-secondary)" }}>
       <TopbarNav
@@ -74,6 +83,12 @@ function PartnerPage() {
         ]}
       />
       <main style={{ maxWidth: 720, margin: "0 auto", padding: "48px 24px" }}>
+        {checkoutSuccess && (
+          <div style={{ marginBottom: 24, padding: "14px 18px", borderRadius: 12, background: "#E6F9EF", border: "1px solid #00D26A", color: "#0B6B3F", fontSize: 15, textAlign: "center" }}>
+            <strong>Payment received — welcome to GreenExpress!</strong> We've been notified and will email you
+            shortly to get your storefront set up.
+          </div>
+        )}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div className="flex justify-center mb-2"><Icon name="chat" size={48} /></div>
           <h1 style={{ fontSize: 34, fontWeight: 700, marginBottom: 8 }}>Partner with GreenExpress</h1>
