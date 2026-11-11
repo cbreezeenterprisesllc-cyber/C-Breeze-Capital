@@ -83,6 +83,39 @@ function TrackOrder() {
     return () => clearInterval(interval);
   }, [fetchOrder]);
 
+  // Where the $7 service-fee Checkout Session lands: ?fee=paid on success,
+  // ?fee=cancelled when the customer backs out (we offer a retry right here).
+  const [feeStatus, setFeeStatus] = useState<"paid" | "cancelled" | null>(null);
+  const [feePaying, setFeePaying] = useState(false);
+  const [feeError, setFeeError] = useState("");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const fee = new URLSearchParams(window.location.search).get("fee");
+    if (fee === "paid" || fee === "cancelled") setFeeStatus(fee);
+  }, []);
+
+  const payServiceFee = async () => {
+    setFeePaying(true);
+    setFeeError("");
+    try {
+      const res = await fetch("/api/service-fee/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: id }),
+      });
+      const data = await res.json();
+      if (data.success && data.data?.url) {
+        window.location.href = data.data.url;
+        return;
+      }
+      setFeeError(data.error || "Couldn't start the service fee payment. Please try again.");
+    } catch {
+      setFeeError("Network error. Please try again.");
+    } finally {
+      setFeePaying(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-dvh bg-[var(--surface-secondary)] flex items-center justify-center">
@@ -179,6 +212,50 @@ function TrackOrder() {
           </Badge>
           <p className="text-sm text-[var(--color-neutral-500)] mt-2">{STATUS_DESCRIPTIONS[status]}</p>
         </div>
+
+        {/* $7 GreenExpress service fee — where the fee Checkout Session lands */}
+        {feeStatus === "paid" && (
+          <Card padding="md" className="mb-6 animate-fade-in">
+            <CardBody>
+              <div className="flex items-start gap-3">
+                <Icon name="check" size={20} />
+                <div>
+                  <p className="font-semibold text-[var(--color-neutral-800)]">Service fee paid — thank you!</p>
+                  <p className="text-sm text-[var(--color-neutral-500)] mt-1">
+                    Your $7.00 GreenExpress service fee is settled. The dispensary is the seller of record and
+                    handles payment for the products themselves.
+                  </p>
+                </div>
+              </div>
+            </CardBody>
+          </Card>
+        )}
+        {feeStatus === "cancelled" && (
+          <Card padding="md" className="mb-6 animate-fade-in">
+            <CardBody>
+              <div className="flex items-start gap-3">
+                <Icon name="shield" size={20} />
+                <div className="flex-1">
+                  <p className="font-semibold text-[var(--color-neutral-800)]">Service fee not paid yet</p>
+                  <p className="text-sm text-[var(--color-neutral-500)] mt-1">
+                    Your order is placed. Pay the flat $7.00 GreenExpress service fee to finish checkout — the
+                    dispensary is paid separately for the products.
+                  </p>
+                  <Button
+                    variant="neon"
+                    size="sm"
+                    className="mt-3 inline-flex items-center gap-2"
+                    onClick={payServiceFee}
+                    loading={feePaying}
+                  >
+                    <Icon name="money" size={16} /> Pay $7.00 service fee
+                  </Button>
+                  {feeError && <p className="text-sm text-[var(--color-error)] mt-2">{feeError}</p>}
+                </div>
+              </div>
+            </CardBody>
+          </Card>
+        )}
 
         {/* Estimated window */}
         {!isCancelled && windowLabel && status !== "delivered" && (
