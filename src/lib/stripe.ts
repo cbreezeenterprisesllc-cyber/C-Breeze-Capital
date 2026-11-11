@@ -110,3 +110,92 @@ export async function createSubscriptionCheckoutSession(params: {
   });
   return session;
 }
+
+// ── Consumer service fee ($7 flat, per order) ────────────────────────────────
+// The ONLY GreenExpress-side consumer payment. It is a software/service fee for
+// using the ordering platform — never the price of cannabis. The dispensary
+// remains the seller of record and collects for product on its own rail, so this
+// session carries the $7 fee and nothing else (mode: "payment", one-time price).
+export const CONSUMER_SERVICE_FEE = {
+  lookupKey: "consumer-fee-7",
+  name: "GreenExpress Service Fee",
+  description: "Flat $7 service fee for ordering through GreenExpress",
+  unitAmount: 700, // cents
+} as const;
+
+let consumerFeePriceCache: string | null = null;
+
+// Same idempotency pattern as the subscription plans: look the Price up by
+// lookup_key first and only create Product/Price when it doesn't exist yet, so
+// repeated deploys/requests never mint duplicate prices.
+async function ensureConsumerFeePrice(): Promise<string> {
+  if (!stripe) throw new Error("Stripe not configured");
+  if (consumerFeePriceCache) return consumerFeePriceCache;
+
+  const existing = await stripe.prices.list({
+    lookup_keys: [CONSUMER_SERVICE_FEE.lookupKey],
+    active: true,
+    limit: 1,
+  });
+  if (existing.data.length > 0) {
+    consumerFeePriceCache = existing.data[0].id;
+    return consumerFeePriceCache;
+  }
+
+  try {
+    const product = await stripe.products.create({
+      name: CONSUMER_SERVICE_FEE.name,
+      description: CONSUMER_SERVICE_FEE.description,
+    });
+    const price = await stripe.prices.create({
+      currency: "usd",
+      unit_amount: CONSUMER_SERVICE_FEE.unitAmount,
+      product: product.id,
+      lookup_key: CONSUMER_SERVICE_FEE.lookupKey,
+      // No `recurring` block: this is a one-time charge, not a subscription.
+    });
+    consumerFeePriceCache = price.id;
+    return price.id;
+  } catch (err) {
+    // Race: another request may have created the lookup key first — re-list once.
+    const retry = await stripe.prices.list({
+      lookup_keys: [CONSUMER_SERVICE_FEE.lookupKey],
+      active: true,
+      limit: 1,
+    });
+    if (retry.data.length > 0) {
+      consumerFeePriceCache = retry.data[0].id;
+      return retry.data[0].id;
+    }
+    throw err;
+  }
+}
+
+export async function createServiceFeeCheckoutSession(params: {
+  orderId: string;
+  customerEmail?: string;
+  successUrl: string;
+  cancelUrl: string;
+}) {
+  if (!stripe) throw new Error("Stripe not configured");
+  const priceId = await ensureConsumerFeePrice();
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    line_items: [{ price: priceId, quantity: 1 }],
+    customer_email: params.customerEmail || undefined,
+    metadata: {
+      order_id: params.orderId,
+      fee_type: "consumer_service_fee",
+    },
+    payment_intent_data: {
+      description: CONSUMER_SERVICE_FEE.name,
+      metadata: {
+        order_id: params.orderId,
+        fee_type: "consumer_service_fee",
+      },
+    },
+    success_url: params.successUrl,
+    cancel_url: params.cancelUrl,
+  });
+  return session;
+}

@@ -303,6 +303,10 @@ function initSchema(db: Database) {
     "ALTER TABLE tenants ADD COLUMN delivery_config TEXT DEFAULT '{}'",
     // Driver performance scoring — on_time (1 on time / 0 late / NULL unscored) per delivered order.
     "ALTER TABLE orders ADD COLUMN on_time INTEGER",
+    // Consumer service fee — the $7 flat GreenExpress platform fee (the only
+    // GE-side consumer charge; the dispensary still collects for product).
+    // service_fee_session_id is the Stripe Checkout session created for it.
+    "ALTER TABLE orders ADD COLUMN service_fee_session_id TEXT",
     // Customer ratings for drivers (1–5) at delivery completion. One rating per order.
     "CREATE TABLE IF NOT EXISTS order_ratings (" +
       "id TEXT PRIMARY KEY, order_id TEXT NOT NULL UNIQUE, rated_type TEXT NOT NULL DEFAULT 'driver', " +

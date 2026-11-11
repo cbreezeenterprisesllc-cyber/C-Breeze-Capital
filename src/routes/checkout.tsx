@@ -68,6 +68,11 @@ function CheckoutPage() {
     : Math.round(subtotal * (tipPercent / 100) * 100) / 100;
   const total = subtotal + deliveryFee + tax + tipAmount;
 
+  // The only GreenExpress-side consumer charge: a flat $7 software/service fee
+  // for using the ordering platform. It is NOT the price of cannabis — the
+  // dispensary stays the seller of record and is paid for the product itself.
+  const SERVICE_FEE = 7;
+
   const handleAgeVerify = () => {
     if (!birthDate) {
       setAgeError("Please enter your date of birth.");
@@ -126,17 +131,13 @@ function CheckoutPage() {
         const orderId = data.data.id;
         clearCart();
 
-        // Redirect to Stripe Checkout
+        // Pay the $7 GreenExpress service fee (payment mode, fee only — the
+        // dispensary is paid for the product separately).
         try {
-          const checkoutRes = await fetch("/api/checkout", {
+          const checkoutRes = await fetch("/api/service-fee/checkout", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              orderId,
-              tenantId,
-              customerId,
-              total: (total).toFixed(2),
-            }),
+            body: JSON.stringify({ orderId }),
           });
           const checkoutData = await checkoutRes.json();
           if (checkoutData.success && checkoutData.data.url) {
@@ -144,7 +145,8 @@ function CheckoutPage() {
             return;
           }
         } catch {
-          // Stripe checkout failed — fall through to order confirmation
+          // Service fee checkout failed — fall through to order confirmation,
+          // where the customer can retry the fee from the tracking page.
         }
 
         setOrderResult({ success: true, orderId });
@@ -460,6 +462,18 @@ function CheckoutPage() {
                     <span className="font-bold text-lg">Total</span>
                     <span className="font-bold text-xl gradient-text-green">${total.toFixed(2)}</span>
                   </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[var(--color-neutral-500)]">GreenExpress service fee</span>
+                    <span className="font-medium">${SERVICE_FEE.toFixed(2)}</span>
+                  </div>
+                  <p className="text-xs text-[var(--color-neutral-500)] bg-[var(--color-neutral-100)] px-3 py-2 rounded-lg flex items-start gap-1">
+                    <Icon name="shield" size={14} />
+                    <span>
+                      You pay the flat ${SERVICE_FEE.toFixed(2)} service fee by card now — that's GreenExpress's
+                      platform fee. Your ${total.toFixed(2)} order total is paid to the dispensary, which is the
+                      licensed seller.
+                    </span>
+                  </p>
                   {subtotal < 50 && (
                     <p className="text-xs text-[var(--color-amber-600)] bg-[var(--color-amber-500)]/10 px-3 py-2 rounded-lg mt-2 flex items-center gap-1">
                       <Icon name="lightbulb" size={14} /> Add ${(50 - subtotal).toFixed(2)} more for <strong>free delivery</strong>!
@@ -477,7 +491,7 @@ function CheckoutPage() {
                   disabled={!ageVerified || (fulfillment === "delivery" && !address.trim()) || (scheduleType === "schedule" && !scheduledAt)}
                   className="inline-flex items-center justify-center gap-2"
                 >
-                  <Icon name="rocket" size={18} /> Place Order — ${total.toFixed(2)}
+                  <Icon name="rocket" size={18} /> Place Order — ${SERVICE_FEE.toFixed(2)} service fee now
                 </Button>
                 {orderResult && !orderResult.success && (
                   <p className="text-sm text-[var(--color-error)] mt-2 animate-fade-in">{orderResult.error}</p>

@@ -64,6 +64,7 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
     handleDispatchAction, handleListMerchantStaff,
     handleListCategories, handleCreateCategory, handleOrderStream,
     handleCreateCheckoutSession,
+    handleCreateServiceFeeCheckout,
     handleCreatePricingCheckout,
     handleDriverApply, handleDriverStatus,
     handleAdminListApplications, handleAdminGetApplication,
@@ -156,6 +157,7 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
 
   // Stripe Checkout
   if (method === "POST" && path === "/api/checkout") return await handleCreateCheckoutSession(body);
+  if (method === "POST" && path === "/api/service-fee/checkout") return await handleCreateServiceFeeCheckout(body);
   if (method === "POST" && path === "/api/pricing/checkout") return await handleCreatePricingCheckout(body);
 
   // Driver Application

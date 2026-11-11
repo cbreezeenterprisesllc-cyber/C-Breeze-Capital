@@ -1124,6 +1124,46 @@ export async function handleCreateCheckoutSession(body: Record<string, unknown>)
     return error("Failed to create checkout session", 500);
   }
 }
+// POST /api/service-fee/checkout — the $7 flat consumer service fee.
+// This is the only GreenExpress-side consumer charge: a software/service fee in
+// `payment` mode for the $7 only. The cannabis subtotal is never charged here —
+// the dispensary stays the seller of record and collects for product itself.
+export async function handleCreateServiceFeeCheckout(body: Record<string, unknown>): Promise<Response> {
+  const orderId = String(body.orderId ?? "").trim();
+  const customerEmail = typeof body.customerEmail === "string" ? body.customerEmail.trim() : "";
+  if (!orderId) return error("orderId is required", 400);
+
+  const db = getDb();
+  const order = db.prepare("SELECT id FROM orders WHERE id = ?").get(orderId) as { id: string } | undefined;
+  if (!order) return error("Order not found", 404);
+
+  const { stripe, createServiceFeeCheckoutSession, CONSUMER_SERVICE_FEE } = await import("./stripe");
+  if (!stripe) return error("Payments not configured", 500);
+
+  const siteBase = Bun.env.SITE_URL || "https://ef5d2c4ae9113753571b85ddf95ab4dd.cto.site";
+  try {
+    const session = await createServiceFeeCheckoutSession({
+      orderId,
+      customerEmail: customerEmail || undefined,
+      successUrl: `${siteBase}/orders/${orderId}/track?fee=paid`,
+      cancelUrl: `${siteBase}/orders/${orderId}/track?fee=cancelled`,
+    });
+    // Record the session against the order so a retry from the tracking page
+    // reuses the same order link and support can trace a fee payment.
+    db.prepare("UPDATE orders SET service_fee_session_id = ?, updated_at = datetime('now') WHERE id = ?").run(
+      session.id,
+      orderId,
+    );
+    return json({
+      success: true,
+      data: { url: session.url, sessionId: session.id, amount: CONSUMER_SERVICE_FEE.unitAmount },
+    });
+  } catch (err) {
+    console.error("Service fee checkout error:", err);
+    return error("We couldn't start the service fee payment right now. Please try again in a moment.", 500);
+  }
+}
+
 // POST /api/pricing/checkout — SaaS subscription checkout for merchants
 // (GreenExpress Pilot $224.25/mo / Growth $299/mo). Prices are ensured
 // idempotently by lookup_key inside src/lib/stripe.ts — never hardcoded here.
