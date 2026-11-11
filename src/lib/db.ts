@@ -379,7 +379,13 @@ function initSchema(db: Database) {
   ]) {
     try { db.run(statement); } catch { /* column already exists */ }
   }
-  migrateOrderStatusCheck(db);
+  // Defense in depth: a failed schema migration must never take every page
+  // down — log loudly and keep serving on the current schema.
+  try {
+    migrateOrderStatusCheck(db);
+  } catch (e) {
+    console.error("orders status migration failed (continuing on current schema):", e);
+  }
 }
 
 /**
@@ -416,7 +422,12 @@ function migrateOrderStatusCheck(db: Database) {
     let def = `"${c.name}" ${c.type || "TEXT"}`;
     if (c.pk) def += " PRIMARY KEY";
     if (c.notnull && !c.pk) def += " NOT NULL";
-    if (c.dflt_value !== null) def += ` DEFAULT ${c.dflt_value}`;
+    if (c.dflt_value !== null) {
+      // PRAGMA table_info strips the outer parens of expression defaults like
+      // DEFAULT (datetime('now')) — re-wrapping keeps them legal column defaults.
+      const dv = String(c.dflt_value);
+      def += dv.includes("(") ? ` DEFAULT (${dv})` : ` DEFAULT ${dv}`;
+    }
     if (c.name === "status") def += ` ${statusCheck}`;
     return def;
   });
