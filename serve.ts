@@ -61,6 +61,7 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
     handleListTenants, handleCreateTenant, handleGetTenant, handleUpdateTenantHours, handleGetDeliveryWindows, handleUpdateTenantDeliveryConfig,
     handleListProducts, handleCreateProduct, handleGetProduct, handleUpdateProduct, handleDeleteProduct,
     handleListOrders, handleCreateOrder, handleGetOrder, handleUpdateOrderStatus, handleDeliverOrder, handleRateOrder, handleGetDriverPerformance, handleListDriverPerformance, handleSetDriverLocation, handleListAvailableOrders, handleClaimOrder, handleStartDelivery, handleSetDriverSelfie,
+    handleDispatchAction, handleListMerchantStaff,
     handleListCategories, handleCreateCategory, handleOrderStream,
     handleCreateCheckoutSession,
     handleCreatePricingCheckout,
@@ -117,6 +118,11 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
   if (method === "GET" && path === "/api/orders/available") return handleListAvailableOrders(requireAuth(req, ["driver", "merchant", "admin"]), url);
   const claimMatch = path.match(/^\/api\/orders\/([^/]+)\/claim$/);
   if (method === "POST" && claimMatch) return handleClaimOrder(claimMatch[1], requireAuth(req, ["driver", "merchant", "admin"]));
+  // Real dispatch pipeline — retailer-side fulfilment actions (assign / ready /
+  // picked_up / in_transit / delivered / cancel). Option B: the retailer's staff.
+  const dispatchMatch = path.match(/^\/api\/orders\/([^/]+)\/dispatch$/);
+  if (method === "POST" && dispatchMatch) return handleDispatchAction(dispatchMatch[1], body, requireAuth(req, ["driver", "merchant", "admin"]));
+  if (method === "GET" && path === "/api/merchant/staff") return handleListMerchantStaff(url, requireAuth(req, ["merchant", "admin"]));
   if (method === "PUT" && path === "/api/me/location") return handleSetDriverLocation(body, requireAuth(req, ["driver", "merchant", "admin"]));
   const startMatch = path.match(/^\/api\/orders\/([^/]+)\/start$/);
   if (method === "POST" && startMatch) return handleStartDelivery(startMatch[1], body, requireAuth(req, ["driver", "merchant", "admin"]));
@@ -126,7 +132,7 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
   if (method === "GET" && path === "/api/orders") return handleListOrders(url);
   if (method === "POST" && path === "/api/orders") return handleCreateOrder(body);
   const orderStatusMatch = path.match(/^\/api\/orders\/([^/]+)\/status$/);
-  if (method === "PUT" && orderStatusMatch) return handleUpdateOrderStatus(orderStatusMatch[1], body);
+  if (method === "PUT" && orderStatusMatch) return handleUpdateOrderStatus(orderStatusMatch[1], body, requireAuth(req, ["customer", "driver", "merchant", "admin"]));
   const deliverMatch = path.match(/^\/api\/orders\/([^/]+)\/deliver$/);
   if (method === "PUT" && deliverMatch) return handleDeliverOrder(deliverMatch[1], body, requireAuth(req, ["driver", "merchant", "admin"]));
   const rateMatch = path.match(/^\/api\/orders\/([^/]+)\/rating$/);

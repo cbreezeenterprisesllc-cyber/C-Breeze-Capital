@@ -7,6 +7,7 @@ import { Modal } from "~/components/Modal";
 import { Icon } from "~/components/Icon";
 import { ChatInbox } from "~/components/ChatInbox";
 import { getChatToken, getChatUser, chatLogin, DEMO_ACCOUNTS } from "~/lib/chat-client";
+import { SignaturePad } from "~/components/SignaturePad";
 import { formatScheduledLabel } from "~/lib/delivery-windows";
 
 export const Route = createFileRoute("/dashboard/driver")({
@@ -34,79 +35,8 @@ type Order = {
   driver_reference_selfie: string | null;
 };
 
-const ACTIVE = ["confirmed", "preparing", "in_transit"];
-
-function SignaturePad({ onChange }: { onChange: (dataUrl: string) => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const drawing = useRef(false);
-  const last = useRef<{ x: number; y: number } | null>(null);
-
-  const point = (e: React.PointerEvent) => {
-    const c = canvasRef.current!;
-    const r = c.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * c.width, y: ((e.clientY - r.top) / r.height) * c.height };
-  };
-  const down = (e: React.PointerEvent) => {
-    drawing.current = true;
-    const c = canvasRef.current!;
-    const ctx = c.getContext("2d")!;
-    ctx.beginPath();
-    last.current = point(e);
-    ctx.moveTo(last.current.x, last.current.y);
-    (e.target as Element).setPointerCapture(e.pointerId);
-  };
-  const move = (e: React.PointerEvent) => {
-    if (!drawing.current) return;
-    const c = canvasRef.current!;
-    const ctx = c.getContext("2d")!;
-    const p = point(e);
-    ctx.strokeStyle = "#0b3d2e";
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-    last.current = p;
-  };
-  const up = () => { drawing.current = false; emit(); };
-  const emit = () => {
-    const c = canvasRef.current!;
-    if (!c) return;
-    onChange(c.toDataURL("image/png"));
-  };
-  const clear = () => {
-    const c = canvasRef.current!;
-    const ctx = c.getContext("2d")!;
-    ctx.clearRect(0, 0, c.width, c.height);
-    onChange("");
-  };
-  useEffect(() => {
-    const c = canvasRef.current!;
-    const dpr = window.devicePixelRatio || 1;
-    const w = c.clientWidth, h = c.clientHeight;
-    c.width = w * dpr; c.height = h * dpr;
-    const ctx = c.getContext("2d")!;
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, w, h);
-  }, []);
-
-  return (
-    <div className="space-y-2">
-      <canvas
-        ref={canvasRef}
-        onPointerDown={down}
-        onPointerMove={move}
-        onPointerUp={up}
-        onPointerLeave={up}
-        className="w-full h-40 rounded-lg border-2 border-dashed border-[var(--color-neutral-300)] bg-white cursor-crosshair touch-none"
-      />
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-[var(--color-neutral-500)]">Have the customer sign above (finger or mouse)</span>
-        <Button variant="ghost" size="sm" onClick={clear}>Clear</Button>
-      </div>
-    </div>
-  );
-}
+// Pipeline states that are still in flight (see src/lib/dispatch.ts).
+const ACTIVE = ["assigned", "ready", "picked_up", "confirmed", "preparing", "in_transit"];
 
 function SelfieCapture({ onChange }: { onChange: (d: string) => void }) {
   const [preview, setPreview] = useState<string | null>(null);
