@@ -1090,40 +1090,6 @@ export function handleDriverAvailability(driverId: string, body: Record<string, 
   return json({ success: true, data: { id: driverId, isAvailable: !!isAvailable } });
 }
 
-// POST /api/checkout — create Stripe checkout session
-export async function handleCreateCheckoutSession(body: Record<string, unknown>): Promise<Response> {
-  const { orderId, tenantId, customerId, total, customerEmail } = body as Record<string, string>;
-
-  if (!orderId || !tenantId || !customerId || !total) {
-    return error("orderId, tenantId, customerId, and total are required");
-  }
-
-  const { stripe, createCheckoutSession } = await import("./stripe");
-  if (!stripe) return error("Payments not configured", 500);
-
-  try {
-    // Charge the authoritative stored order total (subtotal + delivery + tax + tip)
-    // rather than trusting the client-supplied total, so the Stripe amount always
-    // matches the order record even if tip/pricing changes between rendering and pay.
-    const db = getDb();
-    const order = db.prepare("SELECT total FROM orders WHERE id = ?").get(orderId) as { total: number } | undefined;
-    const amountInCents = order?.total != null
-      ? Math.round(Number(order.total) * 100)
-      : Math.round(parseFloat(total) * 100);
-    const session = await createCheckoutSession({
-      orderId,
-      amount: amountInCents,
-      customerEmail: customerEmail || undefined,
-      successUrl: `${Bun.env.SITE_URL || "https://ef5d2c4ae9113753571b85ddf95ab4dd.ctonew.app"}/orders/${orderId}/track?payment=success`,
-      cancelUrl: `${Bun.env.SITE_URL || "https://ef5d2c4ae9113753571b85ddf95ab4dd.ctonew.app"}/cart?payment=cancelled`,
-    });
-
-    return json({ success: true, data: { url: session.url, sessionId: session.id } });
-  } catch (err) {
-    console.error("Stripe checkout error:", err);
-    return error("Failed to create checkout session", 500);
-  }
-}
 // POST /api/service-fee/checkout — the $7 flat consumer service fee.
 // This is the only GreenExpress-side consumer charge: a software/service fee in
 // `payment` mode for the $7 only. The cannabis subtotal is never charged here —
