@@ -376,6 +376,19 @@ function initSchema(db: Database) {
       "actor_id TEXT, actor_name TEXT DEFAULT '', actor_role TEXT DEFAULT '', note TEXT DEFAULT '', " +
       "created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY (order_id) REFERENCES orders(id))",
     "CREATE INDEX IF NOT EXISTS idx_order_events_order ON order_status_events(order_id, created_at)",
+    // ── Two-product funnel separation ──────────────────────────────────────
+    // app_source tags which surface produced the order: 'app' = the consumer
+    // GreenExpress App marketplace, 'storefront' = a single-dispensary storefront
+    // link, 'saas' = the merchant product. Keeps the App funnel measurable
+    // separately from the merchant funnel.
+    "ALTER TABLE orders ADD COLUMN app_source TEXT DEFAULT 'app'",
+    // Consumer page/order events (page_view, order_placed, fee_checkout_started,
+    // ...) with the same app_source tag. Append-only, aggregate reporting only.
+    "CREATE TABLE IF NOT EXISTS app_events (" +
+      "id TEXT PRIMARY KEY, app_source TEXT NOT NULL DEFAULT 'app', name TEXT NOT NULL, " +
+      "path TEXT DEFAULT '', order_id TEXT, props TEXT DEFAULT '{}', " +
+      "created_at TEXT DEFAULT (datetime('now')))",
+    "CREATE INDEX IF NOT EXISTS idx_app_events_source ON app_events(app_source, created_at)",
   ]) {
     try { db.run(statement); } catch { /* column already exists */ }
   }

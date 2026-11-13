@@ -1,7 +1,7 @@
 import { apiFetch } from "~/lib/api-config";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
-import { TopbarNav } from "~/components/Navigation";
+import { ConsumerNav } from "~/components/AppNav";
 import { Button } from "~/components/Button";
 import { Card, CardBody } from "~/components/Card";
 import { Badge } from "~/components/Badge";
@@ -70,7 +70,7 @@ function StorefrontPage() {
   const schedule = hasHours ? formatSchedule(hours) : [];
   return (
     <div className="min-h-dvh bg-emerald-50">
-      <TopbarNav branding={{title:t.store_name}} items={[{label:"Home",href:"/"},{label:"Dispensaries",href:"/dispensaries"},{label:`Cart(${itemCount})`,href:"/cart"}]}/>
+      <ConsumerNav active="dispensaries" brand={t.store_name} />
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex items-center gap-4 mb-8">
           <div className="w-16 h-16 rounded-xl flex items-center justify-center text-white font-bold text-2xl shrink-0" style={{backgroundColor:t.primary_color||"#2D6A4F"}}>{(t.store_name||"S").charAt(0)}</div>

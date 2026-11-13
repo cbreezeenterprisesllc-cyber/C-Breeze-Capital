@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { TopbarNav } from "~/components/Navigation";
+import { ConsumerNav } from "~/components/AppNav";
 import { Button } from "~/components/Button";
 import { Card, CardHeader, CardBody, CardFooter } from "~/components/Card";
 import { Input } from "~/components/Input";
@@ -9,6 +9,7 @@ import { Icon } from "~/components/Icon";
 import { useCart } from "~/context/CartContext";
 import { apiFetch } from "~/lib/api-config";
 import { SiteFooter } from "~/components/SiteFooter";
+import { APP_SOURCE, trackAppEvent, useAppPageView } from "~/lib/app-source";
 
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
@@ -17,6 +18,7 @@ export const Route = createFileRoute("/checkout")({
 function CheckoutPage() {
   const navigate = useNavigate();
   const { items, subtotal, tenantId, tenantName, clearCart } = useCart();
+  useAppPageView("app_checkout_view");
 
   const [showAgeModal, setShowAgeModal] = useState(true);
   const [ageVerified, setAgeVerified] = useState(false);
@@ -111,6 +113,7 @@ function CheckoutPage() {
         body: JSON.stringify({
           tenantId,
           customerId,
+          appSource: APP_SOURCE,
           items: items.map((i) => ({
             productId: i.productId,
             quantity: i.quantity,
@@ -130,10 +133,12 @@ function CheckoutPage() {
       if (data.success) {
         const orderId = data.data.id;
         clearCart();
+        trackAppEvent("order_placed", { orderId, total, fulfillment });
 
         // Pay the $7 GreenExpress service fee (payment mode, fee only — the
         // dispensary is paid for the product separately).
         try {
+          trackAppEvent("fee_checkout_started", { orderId });
           const checkoutRes = await fetch("/api/service-fee/checkout", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -199,14 +204,7 @@ function CheckoutPage() {
 
   return (
     <div className="min-h-dvh bg-[var(--surface-secondary)]">
-      <TopbarNav
-        branding={{ title: "GreenExpress" }}
-        items={[
-          { label: "Home", href: "/" },
-          { label: "Cart", href: "/cart" },
-          { label: "Checkout", active: true },
-        ]}
-      />
+      <ConsumerNav active="cart" />
 
       {/* Age Verification Modal */}
       <Modal open={showAgeModal} onClose={() => {}} title={<span className="flex items-center gap-2"><Icon name="age" size={20} /> Age Verification Required</span>} size="sm">

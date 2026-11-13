@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { TopbarNav } from "~/components/Navigation";
+import { ConsumerNav } from "~/components/AppNav";
 import { Button } from "~/components/Button";
 import { Card, CardBody } from "~/components/Card";
 import { Badge } from "~/components/Badge";
 import { Icon } from "~/components/Icon";
 import { SiteFooter } from "~/components/SiteFooter";
+import { useAppPageView } from "~/lib/app-source";
 import { parseHours, isOpenAt, hasConfiguredHours } from "~/lib/store-hours";
 const getTenants = createServerFn({ method: "GET" }).handler(async () => {
   const { getDb } = await import("~/lib/db");
@@ -21,23 +22,18 @@ function DispensariesIndex() {
     id: string; name: string; slug: string; store_name: string;
     logo_url: string; primary_color: string; hours: string;
   }>;
+  useAppPageView("app_browse_view");
   return (
     <div className="min-h-dvh bg-[var(--surface-secondary)]">
-      <TopbarNav
-        branding={{ title: "GreenExpress" }}
-        items={[
-          { label: "Home", href: "/" },
-          { label: "Dispensaries", href: "/dispensaries", active: true },
-          { label: "Cart", href: "/cart" },
-        ]}
-      />
+      <ConsumerNav active="dispensaries" />
       <main className="max-w-6xl mx-auto px-6 py-12">
         <div className="mb-10 animate-fade-in-up">
           <h1 className="text-4xl md:text-5xl font-[var(--font-heading)] text-[var(--color-primary-900)] mb-2">
             Dispensaries
           </h1>
           <p className="text-[var(--color-neutral-500)] text-lg max-w-xl">
-            Choose a dispensary to browse their menu and place an order for delivery.
+            Licensed stores on GreenExpress App. Pick one to browse its menu — delivery, pickup or curbside,
+            with a flat $7 service fee per order.
           </p>
         </div>
         {tenants.length === 0 ? (

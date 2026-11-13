@@ -1,17 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { TopbarNav } from "~/components/Navigation";
+import { ConsumerNav } from "~/components/AppNav";
 import { Button } from "~/components/Button";
 import { Card, CardHeader, CardBody, CardFooter } from "~/components/Card";
 import { Icon } from "~/components/Icon";
 import { useCart } from "~/context/CartContext";
 import { SiteFooter } from "~/components/SiteFooter";
+import { useAppPageView } from "~/lib/app-source";
 
 export const Route = createFileRoute("/cart")({
   component: CartPage,
 });
 
 function CartPage() {
-  const { items, itemCount, subtotal, tenantId, tenantName, removeItem, updateQuantity, clearCart } = useCart();
+  const { items, subtotal, tenantId, tenantName, removeItem, updateQuantity, clearCart } = useCart();
+  useAppPageView("app_cart_view");
 
   const deliveryFee = subtotal > 50 ? 0 : 5.99;
   const tax = subtotal * 0.08;
@@ -19,14 +21,7 @@ function CartPage() {
 
   return (
     <div className="min-h-dvh bg-[var(--surface-secondary)]">
-      <TopbarNav
-        branding={{ title: "GreenExpress" }}
-        items={[
-          { label: "Home", href: "/" },
-          { label: "Dispensaries", href: "/dispensaries" },
-          { label: `Cart (${itemCount})`, href: "/cart", active: true },
-        ]}
-      />
+      <ConsumerNav active="cart" />
 
       <main className="max-w-4xl mx-auto px-6 py-12 animate-fade-in">
         <div className="flex items-center justify-between mb-8">

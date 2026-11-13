@@ -122,7 +122,7 @@ function PricingPage() {
       <TopbarNav
         branding={{ title: "GreenExpress" }}
         items={[
-          { label: "Home", href: "/" },
+          { label: "I want delivery →", href: "/" },
           { label: "For Dispensaries", href: "/partner" },
           { label: "Pricing", href: "/pricing", active: true },
         ]}
