@@ -76,6 +76,7 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
     handleMerchantAnalytics,
     handleCreateApplication, handleAdminListMerchantApplications, handleUpdateApplicationStatus,
     handleAdminListOutbox, handleAdminMarkEmailSent,
+    handleCreateAppEvent,
   } = await import("./src/lib/api-handlers.ts");
 
   const {
@@ -157,6 +158,9 @@ async function handleApiRequest(req: Request): Promise<Response | null> {
   // Stripe Checkout
   if (method === "POST" && path === "/api/service-fee/checkout") return await handleCreateServiceFeeCheckout(body);
   if (method === "POST" && path === "/api/pricing/checkout") return await handleCreatePricingCheckout(body);
+
+  // Consumer App funnel events (page views, order placements) — tagged app_source
+  if (method === "POST" && path === "/api/app/events") return handleCreateAppEvent(body);
 
   // Driver Application
   if (method === "POST" && path === "/api/drivers/apply") return handleDriverApply(body);

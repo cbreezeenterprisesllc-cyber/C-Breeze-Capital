@@ -76,10 +76,9 @@ function PartnerPage() {
       <TopbarNav
         branding={{ title: "GreenExpress" }}
         items={[
-          { label: "Home", href: "/" },
+          { label: "I want delivery →", href: "/" },
           { label: "For Dispensaries", href: "/partner", active: true },
           { label: "Pricing", href: "/pricing" },
-          { label: "Dispensaries", href: "/dispensaries" },
         ]}
       />
       <main style={{ maxWidth: 720, margin: "0 auto", padding: "48px 24px" }}>

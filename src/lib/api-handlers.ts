@@ -19,6 +19,7 @@ export interface ApiResponse<T = unknown> {
   error?: string;
 }
 
+
 export function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -29,6 +30,49 @@ export function json(data: unknown, status = 200): Response {
 export function error(message: string, status = 400): Response {
   return json({ success: false, error: message }, status);
 }
+
+// ─── App-source funnel tagging ───────────────────────────────────────────────
+// GreenExpress ships two products on one codebase: the consumer marketplace
+// ("GreenExpress App") and the merchant software ("GreenExpress SaaS"). Every
+// consumer page view and order carries an app_source so the two funnels are
+// measured separately and never blend into one number.
+const APP_SOURCES = ["app", "storefront", "saas"] as const;
+type AppSource = (typeof APP_SOURCES)[number];
+
+function normalizeAppSource(value: unknown, fallback: AppSource = "app"): AppSource {
+  const v = String(value ?? "").trim();
+  return (APP_SOURCES as readonly string[]).includes(v) ? (v as AppSource) : fallback;
+}
+
+function recordAppEvent(
+  db: ReturnType<typeof getDb>,
+  appSource: string,
+  name: string,
+  path = "",
+  orderId: string | null = null,
+  props: Record<string, unknown> = {},
+): void {
+  try {
+    db.prepare(
+      "INSERT INTO app_events (id, app_source, name, path, order_id, props) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(generateId(), appSource, name, path, orderId, JSON.stringify(props));
+  } catch {
+    /* analytics must never break an order or a payment */
+  }
+}
+
+// POST /api/app/events — consumer page/order events (public, best effort).
+export function handleCreateAppEvent(body: Record<string, unknown>): Response {
+  const name = String(body.name ?? "").trim().slice(0, 80);
+  if (!name) return error("name is required", 400);
+  const appSource = normalizeAppSource(body.appSource);
+  const path = String(body.path ?? "").slice(0, 200);
+  const orderId = body.orderId ? String(body.orderId) : null;
+  const props = typeof body.props === "object" && body.props !== null ? (body.props as Record<string, unknown>) : {};
+  recordAppEvent(getDb(), appSource, name, path, orderId, props);
+  return json({ success: true, data: { name, appSource } }, 201);
+}
+
 
 // GET /api/health
 export function handleHealth(): Response {
@@ -320,6 +364,10 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
     if (Number.isFinite(t) && t > Date.now()) scheduledAt = String(scheduledDeliveryAt);
   }
   const fulfillment = (fulfillmentType === "pickup" || fulfillmentType === "curbside") ? fulfillmentType : "delivery";
+  // Which surface produced this order — keeps the consumer App funnel and the
+  // merchant/storefront funnels separate in reporting. Anything unrecognised is
+  // treated as the consumer App (the only surface that places orders today).
+  const appSource = normalizeAppSource(body.appSource);
   // Delivery requires a delivery address; pickup/curbside customers come to the store instead.
   if (!tenantId || !customerId || !items) {
     return error("tenantId, customerId, and items are required");
@@ -355,7 +403,7 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
   );
 
   const insertOrder = db.prepare(
-    "INSERT INTO orders (id, tenant_id, customer_id, status, total, delivery_fee, tax, tip_amount, delivery_address, delivery_notes, fulfillment_type, pickup_vehicle, pickup_notes, scheduled_delivery_at) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO orders (id, tenant_id, customer_id, status, total, delivery_fee, tax, tip_amount, delivery_address, delivery_notes, fulfillment_type, pickup_vehicle, pickup_notes, scheduled_delivery_at, app_source) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
 
   const transaction = db.transaction(() => {
@@ -378,7 +426,7 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
     // Insert the order row BEFORE its items: order_items.order_id has a FOREIGN
     // KEY to orders(id), so the parent order must exist first or the item insert
     // fails with "FOREIGN KEY constraint failed".
-    insertOrder.run(id, tenantId, customerId, grandTotal, Number(deliveryFee) || 0, Number(tax) || 0, Number(tip) || 0, deliveryAddress, deliveryNotes || "", fulfillment, pickupVehicle || "", pickupNotes || "", scheduledAt);
+    insertOrder.run(id, tenantId, customerId, grandTotal, Number(deliveryFee) || 0, Number(tax) || 0, Number(tip) || 0, deliveryAddress, deliveryNotes || "", fulfillment, pickupVehicle || "", pickupNotes || "", scheduledAt, appSource);
 
     for (const ri of resolvedItems) {
       insertItem.run(generateId(), id, ri.productId, ri.name, ri.quantity, ri.unitPrice);
@@ -393,6 +441,13 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
 
   const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(id);
   const orderItemsResult = db.prepare("SELECT * FROM order_items WHERE order_id = ?").all(id);
+
+  // Funnel tag: the order and its placement event carry the same app_source.
+  recordAppEvent(db, appSource, "order_placed", "/checkout", id, {
+    total: (order as { total?: number } | undefined)?.total ?? null,
+    tenantId,
+    fulfillment,
+  });
 
   return json({ success: true, data: { ...order as Record<string, unknown>, items: orderItemsResult } }, 201);
 }
@@ -1115,11 +1170,15 @@ export async function handleCreateServiceFeeCheckout(body: Record<string, unknow
       cancelUrl: `${siteBase}/orders/${orderId}/track?fee=cancelled`,
     });
     // Record the session against the order so a retry from the tracking page
-    // reuses the same order link and support can trace a fee payment.
-    db.prepare("UPDATE orders SET service_fee_session_id = ?, updated_at = datetime('now') WHERE id = ?").run(
+    // reuses the same order link and support can trace a fee payment. The order
+    // also inherits the App funnel tag — the $7 fee only ever comes from the
+    // consumer surface.
+    db.prepare("UPDATE orders SET service_fee_session_id = ?, app_source = ?, updated_at = datetime('now') WHERE id = ?").run(
       session.id,
+      "app",
       orderId,
     );
+    recordAppEvent(db, "app", "fee_checkout_started", "/checkout", orderId, { amount: CONSUMER_SERVICE_FEE.unitAmount });
     return json({
       success: true,
       data: { url: session.url, sessionId: session.id, amount: CONSUMER_SERVICE_FEE.unitAmount },

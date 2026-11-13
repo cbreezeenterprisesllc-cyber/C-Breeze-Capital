@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
-import { TopbarNav } from "~/components/Navigation";
+import { ConsumerNav } from "~/components/AppNav";
 import { Button } from "~/components/Button";
 import { Badge } from "~/components/Badge";
 import { Card, CardHeader, CardBody } from "~/components/Card";
@@ -183,14 +183,7 @@ function TrackOrder() {
 
   return (
     <div className="min-h-dvh bg-[var(--surface-secondary)]">
-      <TopbarNav
-        branding={{ title: "GreenExpress" }}
-        items={[
-          { label: "Home", href: "/" },
-          { label: "Dispensaries", href: "/dispensaries" },
-          { label: "Track Order", active: true },
-        ]}
-      />
+      <ConsumerNav active="track" />
 
       <main className="max-w-2xl mx-auto px-6 py-12 animate-fade-in">
         {/* Header */}
