@@ -353,6 +353,56 @@ export function handleListOrders(url: URL): Response {
   return json({ success: true, data: orders });
 }
 
+// ─── Consumer age-gate (21+, self-attested) ──────────────────────────────────
+// Cannabis delivery is restricted to adults 21+. The customer self-attests a date
+// of birth at checkout; this is the server-side check that makes the attestation
+// real — the order is refused outright if it is missing or works out under 21, and
+// orders.age_verified_at is the record that lets the $7 service fee be charged.
+const MIN_ORDER_AGE = 21;
+const UNDERAGE_MESSAGE =
+  "You must be 21 or older to order cannabis through GreenExpress. We can't accept this order — " +
+  "cannabis delivery is limited to adults 21 and over and we aren't able to make exceptions. " +
+  "You're welcome back any time after your 21st birthday.";
+
+/** Age in whole years on today's date, or null if the date isn't a real past date. */
+export function ageFromDob(dob: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob.trim());
+  if (!m) return null;
+  const year = Number(m[1]), month = Number(m[2]), day = Number(m[3]);
+  const birth = new Date(Date.UTC(year, month - 1, day));
+  if (
+    birth.getUTCFullYear() !== year ||
+    birth.getUTCMonth() !== month - 1 ||
+    birth.getUTCDate() !== day
+  ) return null; // e.g. 2001-02-30
+  const now = new Date();
+  if (birth.getTime() > now.getTime()) return null; // future date
+  let age = now.getUTCFullYear() - year;
+  const beforeBirthday =
+    now.getUTCMonth() + 1 < month || (now.getUTCMonth() + 1 === month && now.getUTCDate() < day);
+  if (beforeBirthday) age--;
+  return age;
+}
+
+/** Validate the submitted date of birth; returns an error Response when it fails. */
+function checkConsumerAge(rawDob: unknown): { ok: true; dob: string } | { ok: false; response: Response } {
+  const dob = typeof rawDob === "string" ? rawDob.trim() : "";
+  if (!dob) {
+    return {
+      ok: false,
+      response: error("Please enter your date of birth to confirm you are 21 or older.", 400),
+    };
+  }
+  const age = ageFromDob(dob);
+  if (age === null) {
+    return { ok: false, response: error("That date of birth doesn't look valid. Please enter it as YYYY-MM-DD.", 400) };
+  }
+  if (age < MIN_ORDER_AGE) {
+    return { ok: false, response: error(UNDERAGE_MESSAGE, 403) };
+  }
+  return { ok: true, dob };
+}
+
 // POST /api/orders
 export function handleCreateOrder(body: Record<string, unknown>): Response {
   const { tenantId, customerId, items, deliveryAddress, deliveryNotes, deliveryFee, tax, tip, fulfillmentType, pickupVehicle, pickupNotes, scheduledDeliveryAt } = body as Record<string, unknown>;
@@ -375,6 +425,10 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
   if (fulfillment === "delivery" && !deliveryAddress) {
     return error("A delivery address is required for delivery orders");
   }
+  // 21+ gate: no order exists without a self-attested date of birth the server
+  // has checked. Under-21 is refused here, before anything is written.
+  const ageCheck = checkConsumerAge(body.dateOfBirth);
+  if (!ageCheck.ok) return ageCheck.response;
 
   const db = getDb();
   const id = generateId();
@@ -403,7 +457,7 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
   );
 
   const insertOrder = db.prepare(
-    "INSERT INTO orders (id, tenant_id, customer_id, status, total, delivery_fee, tax, tip_amount, delivery_address, delivery_notes, fulfillment_type, pickup_vehicle, pickup_notes, scheduled_delivery_at, app_source) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO orders (id, tenant_id, customer_id, status, total, delivery_fee, tax, tip_amount, delivery_address, delivery_notes, fulfillment_type, pickup_vehicle, pickup_notes, scheduled_delivery_at, app_source, customer_dob, age_verified_at) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))"
   );
 
   const transaction = db.transaction(() => {
@@ -426,7 +480,7 @@ export function handleCreateOrder(body: Record<string, unknown>): Response {
     // Insert the order row BEFORE its items: order_items.order_id has a FOREIGN
     // KEY to orders(id), so the parent order must exist first or the item insert
     // fails with "FOREIGN KEY constraint failed".
-    insertOrder.run(id, tenantId, customerId, grandTotal, Number(deliveryFee) || 0, Number(tax) || 0, Number(tip) || 0, deliveryAddress, deliveryNotes || "", fulfillment, pickupVehicle || "", pickupNotes || "", scheduledAt, appSource);
+    insertOrder.run(id, tenantId, customerId, grandTotal, Number(deliveryFee) || 0, Number(tax) || 0, Number(tip) || 0, deliveryAddress, deliveryNotes || "", fulfillment, pickupVehicle || "", pickupNotes || "", scheduledAt, appSource, ageCheck.dob);
 
     for (const ri of resolvedItems) {
       insertItem.run(generateId(), id, ri.productId, ri.name, ri.quantity, ri.unitPrice);
@@ -1155,8 +1209,20 @@ export async function handleCreateServiceFeeCheckout(body: Record<string, unknow
   if (!orderId) return error("orderId is required", 400);
 
   const db = getDb();
-  const order = db.prepare("SELECT id FROM orders WHERE id = ?").get(orderId) as { id: string } | undefined;
+  const order = db.prepare("SELECT id, age_verified_at FROM orders WHERE id = ?").get(orderId) as
+    | { id: string; age_verified_at: string | null }
+    | undefined;
   if (!order) return error("Order not found", 404);
+  // 21+ gate (relaunch step 6): the $7 fee is never charged for an order without a
+  // server-checked age attestation. Orders placed through checkout always carry
+  // age_verified_at; this also blocks a retry on a legacy order that has none.
+  if (!order.age_verified_at) {
+    return error(
+      "Age verification required — we can't start the service fee payment for this order because it has no 21+ " +
+        "confirmation on file. Please confirm your date of birth at checkout and place the order again.",
+      403,
+    );
+  }
 
   const { stripe, createServiceFeeCheckoutSession, CONSUMER_SERVICE_FEE } = await import("./stripe");
   if (!stripe) return error("Payments not configured", 500);
