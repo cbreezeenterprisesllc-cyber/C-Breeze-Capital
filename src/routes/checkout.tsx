@@ -24,6 +24,7 @@ function CheckoutPage() {
   const [ageVerified, setAgeVerified] = useState(false);
   const [ageError, setAgeError] = useState("");
   const [birthDate, setBirthDate] = useState("");
+  const [ageAttested, setAgeAttested] = useState(false);
   // Fulfillment: delivery (courier) / pickup (at store) / curbside (bring it to my car).
   const [fulfillment, setFulfillment] = useState<"delivery" | "pickup" | "curbside">("delivery");
   const [address, setAddress] = useState("");
@@ -80,6 +81,10 @@ function CheckoutPage() {
       setAgeError("Please enter your date of birth.");
       return;
     }
+    if (!ageAttested) {
+      setAgeError("Please confirm you are 21 or older.");
+      return;
+    }
     const birth = new Date(birthDate);
     const today = new Date();
     let age = today.getFullYear() - birth.getFullYear();
@@ -90,12 +95,18 @@ function CheckoutPage() {
       setShowAgeModal(false);
       setAgeError("");
     } else {
-      setAgeError("You must be 21 or older to order.");
+      setAgeError(
+        "You must be 21 or older to order cannabis through GreenExpress. We can't take this order — cannabis delivery is limited to adults 21 and over and we aren't able to make exceptions.",
+      );
     }
   };
 
   const handlePlaceOrder = async () => {
     if (!tenantId || items.length === 0) return;
+    if (!ageVerified || !birthDate) {
+      setShowAgeModal(true);
+      return;
+    }
     if (fulfillment === "delivery" && !address.trim()) return;
     if (scheduleType === "schedule" && !scheduledAt) {
       setOrderResult({ success: false, error: "Please pick a delivery window." });
@@ -114,6 +125,7 @@ function CheckoutPage() {
           tenantId,
           customerId,
           appSource: APP_SOURCE,
+          dateOfBirth: birthDate,
           items: items.map((i) => ({
             productId: i.productId,
             quantity: i.quantity,
@@ -156,7 +168,15 @@ function CheckoutPage() {
 
         setOrderResult({ success: true, orderId });
       } else {
-        setOrderResult({ success: false, error: data.error || "Failed to place order" });
+        const message = data.error || "Failed to place order";
+        // A 403 is the server's 21+ refusal — send the customer back to the age
+        // step with the honest reason instead of a generic error.
+        if (res.status === 403) {
+          setAgeVerified(false);
+          setAgeError(message);
+          setShowAgeModal(true);
+        }
+        setOrderResult({ success: false, error: message });
       }
     } catch (err) {
       setOrderResult({ success: false, error: "Network error. Please try again." });
@@ -207,23 +227,36 @@ function CheckoutPage() {
       <ConsumerNav active="cart" />
 
       {/* Age Verification Modal */}
-      <Modal open={showAgeModal} onClose={() => {}} title={<span className="flex items-center gap-2"><Icon name="age" size={20} /> Age Verification Required</span>} size="sm">
+      <Modal open={showAgeModal} onClose={() => {}} title={<span className="flex items-center gap-2"><Icon name="age" size={20} /> 21+ Age Verification</span>} size="sm">
         <div className="space-y-4 animate-scale-in">
           <p className="text-sm text-[var(--color-neutral-500)]">
-            You must be <strong>21 or older</strong> to order cannabis products. Please verify your age.
+            You must be <strong>21 or older</strong> to order cannabis. Enter your date of birth to confirm your age —
+            we check it before your ${SERVICE_FEE.toFixed(2)} service fee payment can start.
           </p>
           <Input
             type="date"
             label="Date of Birth"
             value={birthDate}
-            onChange={(e) => setBirthDate(e.target.value)}
+            max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => { setBirthDate(e.target.value); setAgeError(""); }}
             error={ageError}
           />
+          <label className="flex items-start gap-2 text-sm text-[var(--color-neutral-600)] cursor-pointer">
+            <input
+              type="checkbox"
+              checked={ageAttested}
+              onChange={(e) => { setAgeAttested(e.target.checked); setAgeError(""); }}
+              className="mt-0.5 h-4 w-4 accent-[var(--color-primary-600)]"
+            />
+            <span>
+              I confirm I am 21 or older and the date of birth above is my own.
+            </span>
+          </label>
           <Button fullWidth variant="neon" onClick={handleAgeVerify} className="inline-flex items-center justify-center gap-2">
-            <Icon name="check" size={18} /> Verify Age
+            <Icon name="check" size={18} /> Confirm Age
           </Button>
           <p className="text-xs text-[var(--color-neutral-400)] text-center">
-            By proceeding, you confirm you are 21+ and agree to our terms.
+            Your ID is checked again at the door on delivery. Under-21 orders can&apos;t be accepted.
           </p>
         </div>
       </Modal>

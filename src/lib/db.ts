@@ -307,6 +307,12 @@ function initSchema(db: Database) {
     // GE-side consumer charge; the dispensary still collects for product).
     // service_fee_session_id is the Stripe Checkout session created for it.
     "ALTER TABLE orders ADD COLUMN service_fee_session_id TEXT",
+    // Consumer age-gate — self-attested date of birth (YYYY-MM-DD) captured at
+    // checkout and the timestamp the SERVER confirmed the customer is 21+. The
+    // $7 service-fee checkout refuses to start without age_verified_at, so an
+    // order can never reach payment without a 21+ attestation on file.
+    "ALTER TABLE orders ADD COLUMN customer_dob TEXT",
+    "ALTER TABLE orders ADD COLUMN age_verified_at TEXT",
     // Customer ratings for drivers (1–5) at delivery completion. One rating per order.
     "CREATE TABLE IF NOT EXISTS order_ratings (" +
       "id TEXT PRIMARY KEY, order_id TEXT NOT NULL UNIQUE, rated_type TEXT NOT NULL DEFAULT 'driver', " +
